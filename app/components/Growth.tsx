@@ -7,15 +7,44 @@ interface GrowthProps {
   setSimulationState: (state: SimulationState) => void;
 }
 
-const GENERATOR_OPTIONS: Record<
-  GeneratorType,
-  { capacity: number; cost: number }
-> = {
-  solar: { capacity: 100, cost: 1000 },
-  wind: { capacity: 150, cost: 1500 },
-  nuclear: { capacity: 1000, cost: 10000 },
-  coal: { capacity: 500, cost: 3000 },
-  hydro: { capacity: 300, cost: 4000 },
+interface GeneratorOption {
+  capacity: number;
+  cost: number;
+  inertia: number;
+  variableCost: number;
+}
+
+const GENERATOR_OPTIONS: Record<GeneratorType, GeneratorOption> = {
+  solar: {
+    capacity: 100,
+    cost: 1000,
+    inertia: 0.01,
+    variableCost: 0, // No fuel cost
+  },
+  wind: {
+    capacity: 150,
+    cost: 1500,
+    inertia: 1,
+    variableCost: 0, // No fuel cost
+  },
+  nuclear: {
+    capacity: 1000,
+    cost: 10000,
+    inertia: 5,
+    variableCost: 5, // $5 per MWh (fuel + maintenance)
+  },
+  coal: {
+    capacity: 500,
+    cost: 3000,
+    inertia: 4,
+    variableCost: 20, // $20 per MWh (fuel cost)
+  },
+  hydro: {
+    capacity: 300,
+    cost: 4000,
+    inertia: 3,
+    variableCost: 2, // $2 per MWh (maintenance)
+  },
 };
 
 export default function Growth({
@@ -23,17 +52,30 @@ export default function Growth({
   setSimulationState,
 }: GrowthProps) {
   const addGenerator = (type: GeneratorType) => {
+    const cost = GENERATOR_OPTIONS[type].cost;
+
+    // Check if player can afford it
+    if (simulationState.balance < cost) {
+      alert(
+        `Insufficient funds! Need $${cost.toLocaleString()} to build ${type} generator`
+      );
+      return;
+    }
+
     const generator = {
       id: `gen-${Date.now()}`,
       type,
       capacity: GENERATOR_OPTIONS[type].capacity,
       currentOutput: 0,
       cost: GENERATOR_OPTIONS[type].cost,
+      variableCost: GENERATOR_OPTIONS[type].variableCost,
+      inertia: GENERATOR_OPTIONS[type].inertia,
     };
 
     setSimulationState({
       ...simulationState,
       generators: [...simulationState.generators, generator],
+      balance: simulationState.balance - cost,
     });
   };
 
@@ -49,7 +91,7 @@ export default function Growth({
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
-      <h2 className="text-xl font-semibold mb-4">Growth</h2>
+      <h2 className="text-xl font-semibold mb-4 text-purple-800">Growth</h2>
 
       <div className="space-y-6">
         {/* Add Generation */}
@@ -70,6 +112,9 @@ export default function Growth({
                 </div>
                 <div className="text-sm text-gray-600">
                   ${details.cost.toLocaleString()}
+                </div>
+                <div className="text-sm text-gray-500">
+                  Inertia: {details.inertia}s
                 </div>
               </button>
             ))}

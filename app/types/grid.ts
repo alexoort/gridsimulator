@@ -5,17 +5,34 @@ export interface Generator {
   type: GeneratorType;
   capacity: number; // MW
   currentOutput: number; // MW
-  cost: number; // Cost per MW
+  cost: number; // Initial cost
+  variableCost: number; // Cost per MWh
+  inertia: number; // System inertia constant H in seconds
+}
+
+export interface Battery {
+  capacity: number; // MWh total storage capacity
+  currentCharge: number; // MWh current stored energy
+  maxRate: number; // MW maximum charge/discharge rate
+  efficiency: number; // Round-trip efficiency (0-1)
+  currentOutput: number; // MW current power output (negative when discharging)
 }
 
 export interface NetworkStatus {
-  frequency: number; // Hz, nominal 50Hz
+  frequency: number;
   loadMW: number;
   supplyMW: number;
   customers: number;
   isRunning: boolean;
   speed: number;
-  timeOfDay: number; // 0-23 hours
+  timeOfDay: number;
+  pid: {
+    kp: number;
+    ki: number;
+    kd: number;
+    integral?: number;
+    lastError?: number;
+  };
 }
 
 export interface MarketData {
@@ -27,8 +44,11 @@ export interface MarketData {
 
 export interface SimulationState {
   generators: Generator[];
+  battery: Battery;
   network: NetworkStatus;
   market: MarketData;
-  balance: number; // Player's money
+  balance: number;
   iteration: number;
+  currentDate: string;
+  currentHour: number;
 } 

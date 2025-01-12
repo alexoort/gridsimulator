@@ -1,63 +1,62 @@
 "use client";
 
-import { useState } from "react";
-import NetworkStatus from "./components/NetworkStatus";
-import Growth from "./components/Growth";
-import { SimulationState } from "./types/grid";
+import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 
-export default function Dashboard() {
-  const [simulationState, setSimulationState] = useState<SimulationState>({
-    generators: [],
-    network: {
-      frequency: 50.0,
-      loadMW: 0,
-      supplyMW: 0,
-      customers: 0,
-      isRunning: false,
-      speed: 1,
-      timeOfDay: 12,
-    },
-    market: {
-      pricePerMWh: 50,
-      loadCurve: Array(24)
-        .fill(0)
-        .map(
-          (_, i) => 800 + Math.sin((i * Math.PI) / 12) * 400 // Simulated daily load curve
-        ),
-      solarGenerationCurve: Array(24)
-        .fill(0)
-        .map(
-          (_, i) => (i >= 6 && i <= 18 ? Math.sin(((i - 6) * Math.PI) / 12) : 0) // Solar generation curve (daylight hours)
-        ),
-      windGenerationCurve: Array(24)
-        .fill(0.7)
-        .map((v) => v + Math.random() * 0.3), // Random wind generation
-    },
-    balance: 10000,
-    iteration: 0,
-  });
+export default function LandingPage() {
+  const router = useRouter();
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4">
-      <div className="container mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Power Grid Simulator</h1>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-8">
-            <NetworkStatus
-              simulationState={simulationState}
-              setSimulationState={setSimulationState}
-            />
-          </div>
-
-          <div className="lg:col-span-4">
-            <Growth
-              simulationState={simulationState}
-              setSimulationState={setSimulationState}
-            />
-          </div>
-        </div>
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
+      <div className="text-6xl font-bold flex items-center space-x-2 mb-8">
+        <motion.span
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1 }}
+          className="text-purple-800"
+        >
+          Grid
+        </motion.span>
+        <motion.span
+          initial={{ opacity: 0, width: 0 }}
+          animate={{ opacity: 1, width: "auto" }}
+          transition={{ delay: 1, duration: 1 }}
+          className="text-purple-600 overflow-hidden whitespace-nowrap"
+        >
+          Game
+        </motion.span>
+        <motion.span
+          initial={{ opacity: 0, width: 0 }}
+          animate={{ opacity: 1, width: "auto" }}
+          transition={{ delay: 2, duration: 1 }}
+          className="text-purple-400 overflow-hidden whitespace-nowrap"
+        >
+          Simulator
+        </motion.span>
       </div>
-    </main>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 3, duration: 0.5 }}
+      >
+        <button
+          onClick={() => router.push("/welcome")}
+          className="px-8 py-3 bg-purple-600 text-white rounded-lg shadow-lg hover:bg-purple-700 transform hover:scale-105 transition-all"
+        >
+          Start Your Journey
+        </button>
+      </motion.div>
+
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 3.5, duration: 0.5 }}
+        className="mt-8 text-gray-600 text-center max-w-md"
+      >
+        Experience the challenge of managing a modern power grid. Balance supply
+        and demand, maintain grid frequency, and decarbonize energy production.
+      </motion.p>
+    </div>
   );
 }
