@@ -14,7 +14,17 @@ import PIDController from "../components/PIDController";
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [simulationState, setSimulationState] = useState<SimulationState>({
-    generators: [],
+    generators: [
+      {
+        id: "initial-coal",
+        type: "coal",
+        capacity: 500,
+        currentOutput: 0,
+        cost: 3000,
+        variableCost: 20,
+        inertia: 4,
+      },
+    ],
     battery: {
       capacity: 40,
       currentCharge: 10,
@@ -26,16 +36,18 @@ export default function Dashboard() {
       frequency: 50.0,
       loadMW: 0,
       supplyMW: 0,
-      customers: 0,
+      customers: 30000,
       isRunning: false,
       speed: 1,
       timeOfDay: 0,
+      frequencyHistory: [],
       pid: {
-        kp: 0.5,
-        ki: 0.1,
-        kd: 0.05,
+        kp: 12,
+        ki: 4,
+        kd: 8,
         integral: 0,
         lastError: 0,
+        useBattery: false,
       },
     },
     market: {
@@ -180,13 +192,13 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               <PowerGraph simulationState={simulationState} />
+              <BatteryStatus simulationState={simulationState} />
+            </div>
+            <div className="space-y-6">
               <NetworkStatus
                 simulationState={simulationState}
                 setSimulationState={setSimulationState}
               />
-            </div>
-            <div className="space-y-6">
-              <BatteryStatus simulationState={simulationState} />
               <PIDController
                 simulationState={simulationState}
                 setSimulationState={setSimulationState}
@@ -200,7 +212,10 @@ export default function Dashboard() {
               setSimulationState={setSimulationState}
             />
             <div className="space-y-6">
-              <Assets simulationState={simulationState} />
+              <Assets
+                simulationState={simulationState}
+                setSimulationState={setSimulationState}
+              />
             </div>
           </div>
         )}

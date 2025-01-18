@@ -118,25 +118,95 @@ export default function GridSimulation({
     const currentMarketData = marketData[currentDataIndex];
 
     // Calculate PID correction
-    const error = simulationState.network.frequency - 50; // Error is positive when frequency is too high
+    const error = simulationState.network.frequency - 50;
     const { pid } = simulationState.network;
-    const proportional = pid.kp * error;
-    const integral = (pid.integral || 0) + pid.ki * error;
-    const derivative = pid.kd * (error - (pid.lastError || 0));
-    const pidCorrection = -(proportional + integral + derivative); // Negative correction when frequency is too high
 
-    // Update PID state
+    // Proportional term
+    const proportional = pid.kp * error;
+
+    // Integral term - accumulate error over time
+    const newIntegral = (pid.integral || 0) + error;
+    const integralTerm = pid.ki * newIntegral;
+
+    // Add anti-windup protection
+    const maxIntegral = 100 / pid.ki; // Prevent excessive buildup
+    const clampedIntegral = Math.max(
+      -maxIntegral,
+      Math.min(maxIntegral, newIntegral)
+    );
+
+    // Derivative term
+    const derivative = pid.kd * (error - (pid.lastError || 0));
+
+    let pidCorrection = -(proportional + integralTerm + derivative);
+
+    // Update state with clamped integral
     setSimulationState((prev) => ({
       ...prev,
       network: {
         ...prev.network,
         pid: {
           ...prev.network.pid,
-          integral,
+          integral: clampedIntegral, // Store the accumulated error, not the term
           lastError: error,
         },
       },
     }));
+
+    // If battery control is enabled, use battery first for frequency regulation
+    if (simulationState.network.pid.useBattery) {
+      // Calculate desired battery power based on PID output
+      const totalCapacity = simulationState.generators.reduce(
+        (sum, gen) => sum + gen.capacity,
+        0
+      );
+      const desiredBatteryPower = (pidCorrection / 100) * totalCapacity;
+
+      // Limit to battery's max rate and current charge state
+      const maxDischarge = Math.min(
+        simulationState.battery.maxRate,
+        simulationState.battery.currentCharge *
+          simulationState.battery.efficiency
+      );
+      const maxCharge = Math.min(
+        simulationState.battery.maxRate,
+        (simulationState.battery.capacity -
+          simulationState.battery.currentCharge) /
+          simulationState.battery.efficiency
+      );
+
+      // Apply battery limits
+      const limitedBatteryPower = Math.max(
+        -maxDischarge,
+        Math.min(maxCharge, desiredBatteryPower)
+      );
+
+      // Update battery state
+      const energyChange =
+        limitedBatteryPower *
+        (limitedBatteryPower > 0
+          ? simulationState.battery.efficiency
+          : 1 / simulationState.battery.efficiency);
+      setSimulationState((prev) => ({
+        ...prev,
+        battery: {
+          ...prev.battery,
+          currentCharge: Math.max(
+            0,
+            Math.min(
+              prev.battery.capacity,
+              prev.battery.currentCharge + energyChange
+            )
+          ),
+          currentOutput: limitedBatteryPower,
+        },
+      }));
+
+      // Adjust PID correction for remaining imbalance
+      const remainingCorrection =
+        ((desiredBatteryPower - limitedBatteryPower) / totalCapacity) * 100;
+      pidCorrection = remainingCorrection;
+    }
 
     simulationState.generators.forEach((generator) => {
       let output = generator.capacity;
@@ -289,7 +359,6 @@ export default function GridSimulation({
   );
 
   // Calculate battery contribution to balance supply and demand
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const calculateBatteryPower = useCallback(
     (supply: number, load: number) => {
       const imbalance = load - supply; // Positive means we need more power
@@ -320,15 +389,6 @@ export default function GridSimulation({
         batteryPower = maxCharge;
       }
 
-      // Log battery action
-      console.log("Battery operation:", {
-        imbalance,
-        batteryPower,
-        currentCharge: battery.currentCharge,
-        efficiency: battery.efficiency,
-        atMaxRate: Math.abs(batteryPower) >= battery.maxRate,
-      });
-
       return batteryPower;
     },
     [simulationState.battery]
@@ -337,9 +397,6 @@ export default function GridSimulation({
   // Update battery state based on power flow
   const updateBatteryState = useCallback(
     (batteryPower: number) => {
-      // Calculate energy change (in MWh)
-      // For charging (positive power): apply efficiency loss
-      // For discharging (negative power): apply efficiency loss
       const energyChange =
         batteryPower *
         (batteryPower > 0
@@ -354,22 +411,13 @@ export default function GridSimulation({
         )
       );
 
-      // Log battery state update
-      console.log("Updating battery state:", {
-        batteryPower,
-        energyChange,
-        currentCharge: simulationState.battery.currentCharge,
-        newCharge,
-        efficiency: simulationState.battery.efficiency,
-      });
-
       return {
         ...simulationState.battery,
         currentCharge: newCharge,
         currentOutput: batteryPower,
       };
     },
-    [simulationState.battery, simulationState.network.speed]
+    [simulationState.battery]
   );
 
   // Calculate revenue and costs
@@ -467,20 +515,40 @@ export default function GridSimulation({
           prev.network.frequency
         );
 
-        // Calculate price based on supply/demand balance
-        const supplyDemandRatio = totalSupply / Math.max(load, 1);
-        const basePrice = 50; // Base price per MWh
-        const priceMultiplier =
-          supplyDemandRatio < 1
-            ? 1 + (1 - supplyDemandRatio)
-            : 1 / supplyDemandRatio;
-        const currentPrice = basePrice * priceMultiplier;
+        // Update frequency history
+        const now = Date.now();
+        const newFrequencyHistory = [
+          ...(prev.network.frequencyHistory || []).filter(
+            (entry) => now - entry.timestamp < 12 * 60 * 60 * 1000
+          ), // Keep last 12 hours
+          { frequency, timestamp: now },
+        ];
+
+        // Calculate average frequency deviation
+        const avgFrequencyDeviation =
+          newFrequencyHistory.reduce(
+            (sum, entry) => sum + Math.abs(entry.frequency - 50),
+            0
+          ) / Math.max(newFrequencyHistory.length, 1);
+
+        // Calculate price based on frequency deviation
+        const normalizedDeviation = Math.min(avgFrequencyDeviation / 0.5, 1);
+        const currentPrice = 200 - normalizedDeviation * 180;
+
+        // Apply additional penalty for extreme deviations (>1 Hz)
+        const finalPrice =
+          avgFrequencyDeviation > 1
+            ? Math.max(
+                20,
+                currentPrice / Math.pow(2, avgFrequencyDeviation - 1)
+              )
+            : currentPrice;
 
         // Calculate financial update
         const netIncome = calculateFinancials(
           totalSupply,
           batteryPower,
-          currentPrice
+          finalPrice
         );
 
         // If date changed, update our local state
@@ -496,10 +564,11 @@ export default function GridSimulation({
             loadMW: load,
             frequency,
             timeOfDay: newHour,
+            frequencyHistory: newFrequencyHistory,
           },
           market: {
             ...prev.market,
-            pricePerMWh: currentPrice,
+            pricePerMWh: finalPrice,
           },
           battery: newBatteryState,
           balance: prev.balance + netIncome,
@@ -523,6 +592,7 @@ export default function GridSimulation({
     getNextDate,
     marketData.length,
     currentDataIndex,
+    setSimulationState,
   ]);
 
   // Handle date or hour changes

@@ -26,12 +26,14 @@ export interface NetworkStatus {
   isRunning: boolean;
   speed: number;
   timeOfDay: number;
+  frequencyHistory: { frequency: number; timestamp: number }[];
   pid: {
     kp: number;
     ki: number;
     kd: number;
     integral?: number;
     lastError?: number;
+    useBattery: boolean;
   };
 }
 

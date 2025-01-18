@@ -28,6 +28,22 @@ export default function PIDController({
     }));
   };
 
+  // Toggle battery control
+  const toggleBatteryControl = () => {
+    setSimulationState((prev) => ({
+      ...prev,
+      network: {
+        ...prev.network,
+        pid: {
+          ...prev.network.pid,
+          useBattery: !prev.network.pid.useBattery,
+          integral: 0,
+          lastError: 0,
+        },
+      },
+    }));
+  };
+
   // Calculate current correction for display
   const error = simulationState.network.frequency - 50; // Error is positive when frequency is too high
   const { pid } = simulationState.network;
@@ -36,6 +52,11 @@ export default function PIDController({
   const derivative = pid.kd * (error - (pid.lastError || 0));
   const currentCorrection = -(proportional + integral + derivative); // Negative correction when frequency is too high
 
+  // Calculate battery contribution
+  const batteryPower = simulationState.battery.currentOutput;
+  const maxBatteryRate = simulationState.battery.maxRate;
+  const batteryPercentage = (Math.abs(batteryPower) / maxBatteryRate) * 100;
+
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       <h2 className="text-xl font-semibold mb-4 text-purple-800">
@@ -43,6 +64,26 @@ export default function PIDController({
       </h2>
 
       <div className="space-y-4">
+        {/* Battery Control Toggle */}
+        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          <div>
+            <div className="font-medium">Battery Control</div>
+            <div className="text-sm text-gray-600">
+              Use battery for frequency regulation
+            </div>
+          </div>
+          <button
+            onClick={toggleBatteryControl}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              pid.useBattery
+                ? "bg-purple-100 text-purple-800"
+                : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {pid.useBattery ? "Enabled" : "Disabled"}
+          </button>
+        </div>
+
         {/* Proportional Control */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
@@ -52,7 +93,7 @@ export default function PIDController({
             <input
               type="range"
               min="0"
-              max="10"
+              max="20"
               step="1"
               value={simulationState.network.pid.kp}
               onChange={(e) =>
@@ -75,7 +116,7 @@ export default function PIDController({
             <input
               type="range"
               min="0"
-              max="5"
+              max="10"
               step="0.5"
               value={simulationState.network.pid.ki}
               onChange={(e) =>
@@ -98,8 +139,8 @@ export default function PIDController({
             <input
               type="range"
               min="0"
-              max="0.5"
-              step="0.01"
+              max="10"
+              step="0.5"
               value={simulationState.network.pid.kd}
               onChange={(e) =>
                 handleParamChange("kd", parseFloat(e.target.value))
@@ -135,6 +176,21 @@ export default function PIDController({
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">Total Correction:</span>
             <span className="font-medium">{currentCorrection.toFixed(1)}%</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Battery Power:</span>
+            <span
+              className={`font-medium ${
+                batteryPower > 0
+                  ? "text-green-600"
+                  : batteryPower < 0
+                  ? "text-red-600"
+                  : "text-gray-600"
+              }`}
+            >
+              {batteryPower.toFixed(1)} MW ({batteryPercentage.toFixed(0)}% of
+              max)
+            </span>
           </div>
         </div>
       </div>

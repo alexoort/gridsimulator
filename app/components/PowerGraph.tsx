@@ -54,17 +54,21 @@ export default function PowerGraph({ simulationState }: PowerGraphProps) {
 
     setData((prevData) => {
       const newData = [...prevData, newPoint];
-      const slicedData = newData.slice(-maxDataPoints);
-      localStorage.setItem("powerGraphData", JSON.stringify(slicedData));
-      return slicedData;
+      return newData.slice(-maxDataPoints);
     });
   }, [
     simulationState.network.isRunning,
     simulationState.currentHour,
     simulationState.network.loadMW,
     simulationState.network.supplyMW,
-    maxDataPoints,
   ]);
+
+  // Save data to localStorage whenever it changes
+  useEffect(() => {
+    if (data.length > 0) {
+      localStorage.setItem("powerGraphData", JSON.stringify(data));
+    }
+  }, [data]);
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">

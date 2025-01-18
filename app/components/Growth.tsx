@@ -89,6 +89,28 @@ export default function Growth({
     });
   };
 
+  const upgradeBattery = () => {
+    const upgradeCost = 2000; // Cost to upgrade battery by 40 MWh
+
+    // Check if player can afford it
+    if (simulationState.balance < upgradeCost) {
+      alert(
+        `Insufficient funds! Need $${upgradeCost.toLocaleString()} to upgrade battery capacity`
+      );
+      return;
+    }
+
+    setSimulationState({
+      ...simulationState,
+      battery: {
+        ...simulationState.battery,
+        capacity: simulationState.battery.capacity + 40,
+        maxRate: simulationState.battery.maxRate + 5, // Also increase charge/discharge rate
+      },
+      balance: simulationState.balance - upgradeCost,
+    });
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       <h2 className="text-xl font-semibold mb-4 text-purple-800">Growth</h2>
@@ -118,6 +140,15 @@ export default function Growth({
                 </div>
               </button>
             ))}
+            <button
+              onClick={upgradeBattery}
+              className="p-3 border rounded-lg hover:bg-gray-50 transition-colors text-left"
+            >
+              <div className="font-medium">Battery Storage</div>
+              <div className="text-sm text-gray-600">+40 MWh</div>
+              <div className="text-sm text-gray-600">$2,000</div>
+              <div className="text-sm text-gray-500">+5 MW Rate</div>
+            </button>
           </div>
         </div>
 

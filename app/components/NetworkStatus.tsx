@@ -55,38 +55,11 @@ export default function NetworkStatus({
         Network Status
       </h2>
 
-      <div className="mb-6">
+      <div className="mb-8 px-10 py-10">
         <FrequencyDial
           frequency={simulationState.network.frequency}
           onGameOver={handleGameOver}
         />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <p className="text-sm text-gray-600">Load</p>
-          <p className="text-xl font-semibold">
-            {simulationState.network.loadMW.toFixed(1)} MW
-          </p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-600">Generation</p>
-          <p className="text-xl font-semibold">
-            {simulationState.network.supplyMW.toFixed(1)} MW
-          </p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-600">Customers</p>
-          <p className="text-xl font-semibold">
-            {simulationState.network.customers.toLocaleString()}
-          </p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-600">Market Price</p>
-          <p className="text-xl font-semibold">
-            ${simulationState.market.pricePerMWh.toFixed(2)}/MWh
-          </p>
-        </div>
       </div>
 
       {showGameOver && (
