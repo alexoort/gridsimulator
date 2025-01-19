@@ -16,34 +16,39 @@ interface GeneratorOption {
 
 const GENERATOR_OPTIONS: Record<GeneratorType, GeneratorOption> = {
   solar: {
+    // upfront cost per MW: $1000
     capacity: 100,
-    cost: 1000,
+    cost: 100000,
     inertia: 0.01,
     variableCost: 0, // No fuel cost
   },
   wind: {
-    capacity: 150,
-    cost: 1500,
+    // upfront cost per MW: $1300
+    capacity: 100,
+    cost: 130000,
     inertia: 1,
     variableCost: 0, // No fuel cost
   },
   nuclear: {
+    // upfront cost per MW: $9000
     capacity: 1000,
-    cost: 10000,
+    cost: 9000000,
     inertia: 5,
-    variableCost: 5, // $5 per MWh (fuel + maintenance)
+    variableCost: 12, // $12 per MWh (fuel + maintenance)
   },
   coal: {
+    // upfront cost per MW: $2800
     capacity: 500,
-    cost: 3000,
+    cost: 1400000,
     inertia: 4,
-    variableCost: 20, // $20 per MWh (fuel cost)
+    variableCost: 30, // $30 per MWh (fuel cost)
   },
   hydro: {
+    // upfront cost per MW: $3500
     capacity: 300,
-    cost: 4000,
+    cost: 1050000,
     inertia: 3,
-    variableCost: 2, // $2 per MWh (maintenance)
+    variableCost: 3, // $2 per MWh (maintenance)
   },
 };
 

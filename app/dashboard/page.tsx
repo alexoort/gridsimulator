@@ -10,8 +10,11 @@ import BatteryStatus from "../components/BatteryStatus";
 import Tabs from "../components/Tabs";
 import PowerGraph from "../components/PowerGraph";
 import PIDController from "../components/PIDController";
+import Sustainability from "../components/Sustainability";
+import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [simulationState, setSimulationState] = useState<SimulationState>({
     generators: [
@@ -52,9 +55,11 @@ export default function Dashboard() {
     },
     market: {
       pricePerMWh: 50,
-      loadCurve: Array(24).fill(1000),
-      solarGenerationCurve: Array(24).fill(0.5),
-      windGenerationCurve: Array(24).fill(0.7),
+      lastPriceUpdate: Date.now(),
+      dailyFrequencyDeviations: [],
+      solarData: Array(24).fill(0.5),
+      windData: Array(24).fill(0.7),
+      demandData: Array(24).fill(1000),
     },
     balance: 10000,
     iteration: 0,
@@ -104,6 +109,84 @@ export default function Dashboard() {
     simulationState.currentHour
   );
 
+  const handleEndSimulation = async () => {
+    // Calculate run statistics
+    const stats = {
+      startDate: "2024-01-01", // Initial date
+      endDate: simulationState.currentDate,
+      duration: `${simulationState.iteration} ticks`,
+      averageFrequency:
+        simulationState.network.frequencyHistory.reduce(
+          (sum, entry) => sum + entry.frequency,
+          0
+        ) / Math.max(simulationState.network.frequencyHistory.length, 1),
+      maxFrequencyDeviation: Math.max(
+        ...simulationState.network.frequencyHistory.map((entry) =>
+          Math.abs(entry.frequency - 50)
+        )
+      ),
+      averagePrice: simulationState.market.pricePerMWh,
+      totalRevenue: simulationState.balance - 10000, // Subtract initial balance
+      totalCosts: 0, // You'll need to track this separately
+      profit: simulationState.balance - 10000,
+      renewablePercentage:
+        (simulationState.generators
+          .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
+          .reduce((sum, g) => sum + g.currentOutput, 0) /
+          simulationState.generators.reduce(
+            (sum, g) => sum + g.currentOutput,
+            0
+          )) *
+        100,
+      totalEmissions: 0, // You'll need to track this
+      averageGridIntensity: 0, // You'll need to track this
+    };
+
+    try {
+      // Save run to database
+      const response = await fetch("/api/runs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(stats),
+      });
+
+      if (!response.ok) throw new Error("Failed to save run");
+
+      const { id } = await response.json();
+
+      // Reset simulation state
+      setSimulationState((prev) => ({
+        ...prev,
+        network: {
+          ...prev.network,
+          isRunning: false,
+          frequency: 50.0,
+          frequencyHistory: [],
+          pid: {
+            ...prev.network.pid,
+            integral: 0,
+            lastError: 0,
+          },
+        },
+        market: {
+          ...prev.market,
+          dailyFrequencyDeviations: [],
+        },
+        currentDate: "2024-01-01",
+        currentHour: 0,
+        iteration: 0,
+      }));
+
+      // Redirect to statistics page
+      router.push(`/runs?id=${id}`);
+    } catch (error) {
+      console.error("Failed to save run:", error);
+      // You might want to show an error message to the user here
+    }
+  };
+
   return (
     <main className="min-h-screen bg-gray-100 p-4">
       <div className="container mx-auto">
@@ -134,29 +217,53 @@ export default function Dashboard() {
                     }))
                   }
                   className="w-full"
+                  disabled={!simulationState.network.isRunning}
                 />
                 <div className="flex justify-between text-xs text-gray-600">
                   <span>1x</span>
                   <span>10x</span>
                 </div>
-                <button
-                  onClick={() =>
-                    setSimulationState((prev) => ({
-                      ...prev,
-                      network: {
-                        ...prev.network,
-                        isRunning: !prev.network.isRunning,
-                      },
-                    }))
-                  }
-                  className={`w-full py-1.5 px-4 rounded-lg font-medium transition-colors ${
-                    simulationState.network.isRunning
-                      ? "bg-red-500 hover:bg-red-600 text-white"
-                      : "bg-green-500 hover:bg-green-600 text-white"
-                  }`}
-                >
-                  {simulationState.network.isRunning ? "Stop" : "Start"}
-                </button>
+                <div className="flex gap-2">
+                  {simulationState.network.isRunning ? (
+                    <button
+                      onClick={() =>
+                        setSimulationState((prev) => ({
+                          ...prev,
+                          network: {
+                            ...prev.network,
+                            isRunning: false,
+                          },
+                        }))
+                      }
+                      className="w-full py-1.5 px-4 rounded-lg font-medium bg-yellow-500 hover:bg-yellow-600 text-white transition-colors"
+                    >
+                      Pause
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() =>
+                          setSimulationState((prev) => ({
+                            ...prev,
+                            network: {
+                              ...prev.network,
+                              isRunning: true,
+                            },
+                          }))
+                        }
+                        className="flex-1 py-1.5 px-4 rounded-lg font-medium bg-green-500 hover:bg-green-600 text-white transition-colors"
+                      >
+                        Continue
+                      </button>
+                      <button
+                        onClick={handleEndSimulation}
+                        className="flex-1 py-1.5 px-4 rounded-lg font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+                      >
+                        End
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -171,7 +278,7 @@ export default function Dashboard() {
                 {simulationState.network.isRunning ? (
                   <span className="text-green-600">Simulation Running</span>
                 ) : (
-                  <span className="text-gray-500">Simulation Paused</span>
+                  <span className="text-yellow-500">Simulation Paused</span>
                 )}
               </div>
             </div>
@@ -205,7 +312,7 @@ export default function Dashboard() {
               />
             </div>
           </div>
-        ) : (
+        ) : activeTab === "growth" ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Growth
               simulationState={simulationState}
@@ -216,6 +323,13 @@ export default function Dashboard() {
                 simulationState={simulationState}
                 setSimulationState={setSimulationState}
               />
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Sustainability simulationState={simulationState} />
+            <div className="space-y-6">
+              <PowerGraph simulationState={simulationState} />
             </div>
           </div>
         )}

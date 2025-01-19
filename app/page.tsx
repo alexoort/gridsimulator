@@ -152,13 +152,16 @@ export default function LandingPage() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 6, duration: 0.5 }} // Increased delay
+        transition={{ delay: 6, duration: 0.5 }}
       >
         <button
-          onClick={() => router.push("/welcome")}
+          onClick={() => {
+            // Simulate login for now
+            router.push("/home");
+          }}
           className="px-8 py-3 bg-purple-600 text-white rounded-lg shadow-lg hover:bg-purple-700 transform hover:scale-105 transition-all"
         >
-          Start Now
+          Login to Play
         </button>
       </motion.div>
 

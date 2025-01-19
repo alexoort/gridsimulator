@@ -24,6 +24,23 @@ export default function Assets({
   const hourlyRevenue =
     simulationState.network.supplyMW * simulationState.market.pricePerMWh;
 
+  // Calculate operating costs (variable costs based on actual output)
+  const operatingCosts = simulationState.generators.reduce(
+    (total, generator) => {
+      return total + generator.currentOutput * generator.variableCost;
+    },
+    0
+  );
+
+  // Calculate fixed costs (1% of initial cost per day, converted to hourly)
+  const fixedCosts = simulationState.generators.reduce((total, generator) => {
+    const dailyFixedCost = generator.cost * 0.01; // 1% of initial cost per day
+    return total + dailyFixedCost / 24; // Convert to hourly
+  }, 0);
+
+  // Calculate net income per hour
+  const netIncomePerHour = hourlyRevenue - operatingCosts - fixedCosts;
+
   // Group generators by type
   const generatorsByType = simulationState.generators.reduce(
     (acc, generator) => {
@@ -46,14 +63,39 @@ export default function Assets({
     <div className="bg-white rounded-lg shadow-lg p-6">
       <h2 className="text-xl font-semibold mb-4">Assets and Revenue</h2>
 
-      {/* Balance */}
-      <div className="mb-6">
-        <h3 className="text-sm font-medium text-gray-700 mb-2">Balance</h3>
+      {/* Balance and Revenue Details */}
+      <div className="mb-6 space-y-2">
+        <h3 className="text-sm font-medium text-gray-700">Balance</h3>
         <div className="text-2xl font-bold text-green-600">
           ${simulationState.balance.toLocaleString()}
         </div>
-        <div className="text-sm text-gray-500">
-          Revenue: ${hourlyRevenue.toFixed(2)}/hour
+        <div className="space-y-1">
+          <div className="text-sm text-gray-600 flex justify-between">
+            <span>Gross Revenue:</span>
+            <span className="text-green-600">
+              ${hourlyRevenue.toFixed(2)}/hour
+            </span>
+          </div>
+          <div className="text-sm text-gray-600 flex justify-between">
+            <span>Operating Costs:</span>
+            <span className="text-red-600">
+              -${operatingCosts.toFixed(2)}/hour
+            </span>
+          </div>
+          <div className="text-sm text-gray-600 flex justify-between">
+            <span>Fixed Costs:</span>
+            <span className="text-red-600">-${fixedCosts.toFixed(2)}/hour</span>
+          </div>
+          <div className="text-sm font-medium flex justify-between border-t pt-1">
+            <span>Net Income:</span>
+            <span
+              className={
+                netIncomePerHour >= 0 ? "text-green-600" : "text-red-600"
+              }
+            >
+              ${netIncomePerHour.toFixed(2)}/hour
+            </span>
+          </div>
         </div>
       </div>
 
@@ -72,6 +114,10 @@ export default function Assets({
                 <div className="font-medium capitalize">{type}</div>
                 <div className="text-sm text-gray-600">
                   {generationByType[type].toFixed(1)} MW
+                </div>
+                <div className="text-xs text-gray-500">
+                  Fixed Cost: ${((generators[0].cost * 0.01) / 24).toFixed(2)}
+                  /hour per unit
                 </div>
               </div>
               <div className="flex items-center space-x-3">

@@ -4,15 +4,25 @@ interface TabsProps {
 }
 
 export default function Tabs({ activeTab, setActiveTab }: TabsProps) {
-  const tabs = [
-    { id: "dashboard", name: "Dashboard" },
-    { id: "growth", name: "Growth & Assets" },
+  const TABS = [
+    {
+      id: "dashboard",
+      label: "Dashboard",
+    },
+    {
+      id: "growth",
+      label: "Growth",
+    },
+    {
+      id: "sustainability",
+      label: "Sustainability",
+    },
   ];
 
   return (
     <div className="border-b border-gray-200 mb-6">
       <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-        {tabs.map((tab) => (
+        {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -25,7 +35,7 @@ export default function Tabs({ activeTab, setActiveTab }: TabsProps) {
               }
             `}
           >
-            {tab.name}
+            {tab.label}
           </button>
         ))}
       </nav>

@@ -39,9 +39,11 @@ export interface NetworkStatus {
 
 export interface MarketData {
   pricePerMWh: number;
-  loadCurve: number[]; // 24 hour load curve
-  solarGenerationCurve: number[]; // 24 hour solar generation curve
-  windGenerationCurve: number[]; // 24 hour wind generation curve
+  lastPriceUpdate: number;
+  dailyFrequencyDeviations: number[];
+  solarData: number[];
+  windData: number[];
+  demandData: number[];
 }
 
 export interface SimulationState {

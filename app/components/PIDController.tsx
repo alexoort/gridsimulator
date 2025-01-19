@@ -93,17 +93,25 @@ export default function PIDController({
             <input
               type="range"
               min="0"
-              max="20"
-              step="1"
+              max="50"
+              step="2"
               value={simulationState.network.pid.kp}
               onChange={(e) =>
                 handleParamChange("kp", parseFloat(e.target.value))
               }
               className="flex-grow"
             />
-            <span className="text-sm text-gray-600 w-12">
-              {simulationState.network.pid.kp.toFixed(1)}
-            </span>
+            <input
+              type="number"
+              min="0"
+              max="50"
+              step="0.1"
+              value={simulationState.network.pid.kp}
+              onChange={(e) =>
+                handleParamChange("kp", parseFloat(e.target.value))
+              }
+              className="w-20 px-2 py-1 text-sm border rounded text-gray-900"
+            />
           </div>
         </div>
 
@@ -116,17 +124,25 @@ export default function PIDController({
             <input
               type="range"
               min="0"
-              max="10"
-              step="0.5"
+              max="20"
+              step="1"
               value={simulationState.network.pid.ki}
               onChange={(e) =>
                 handleParamChange("ki", parseFloat(e.target.value))
               }
               className="flex-grow"
             />
-            <span className="text-sm text-gray-600 w-12">
-              {simulationState.network.pid.ki.toFixed(2)}
-            </span>
+            <input
+              type="number"
+              min="0"
+              max="20"
+              step="0.1"
+              value={simulationState.network.pid.ki}
+              onChange={(e) =>
+                handleParamChange("ki", parseFloat(e.target.value))
+              }
+              className="w-20 px-2 py-1 text-sm border rounded text-gray-900"
+            />
           </div>
         </div>
 
@@ -139,17 +155,25 @@ export default function PIDController({
             <input
               type="range"
               min="0"
-              max="10"
-              step="0.5"
+              max="30"
+              step="2"
               value={simulationState.network.pid.kd}
               onChange={(e) =>
                 handleParamChange("kd", parseFloat(e.target.value))
               }
               className="flex-grow"
             />
-            <span className="text-sm text-gray-600 w-12">
-              {simulationState.network.pid.kd.toFixed(2)}
-            </span>
+            <input
+              type="number"
+              min="0"
+              max="30"
+              step="0.1"
+              value={simulationState.network.pid.kd}
+              onChange={(e) =>
+                handleParamChange("kd", parseFloat(e.target.value))
+              }
+              className="w-20 px-2 py-1 text-sm border rounded text-gray-900"
+            />
           </div>
         </div>
 
