@@ -1,12 +1,20 @@
 import { NextResponse } from 'next/server';
 import { sql } from "@vercel/postgres";
 
-export async function GET(
-  request: Request,
-  { params }: any
-) {
+export async function GET(request: Request) {
   try {
-    const id = params.id;
+    // Get ID from URL
+    const id = request.url.split('/').pop();
+    
+    // Validate ID
+    const numericId = parseInt(id as string, 10);
+    if (isNaN(numericId)) {
+      return NextResponse.json(
+        { error: 'Invalid ID format' },
+        { status: 400 }
+      );
+    }
+
     const result = await sql`
       SELECT 
         r.id,
@@ -21,7 +29,7 @@ export async function GET(
         u.username
       FROM runs r
       JOIN users u ON r.user_id = u.id
-      WHERE r.id = ${parseInt(id)}
+      WHERE r.id = ${numericId}
     `;
 
     if (result.rows.length === 0) {

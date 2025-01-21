@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 interface RunStatistics {
@@ -19,23 +19,60 @@ interface RunStatistics {
   averageGridIntensity: number;
 }
 
-export default function RunStatistics() {
+// Loading component
+function LoadingState() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-pulse text-xl">Loading run details...</div>
+    </div>
+  );
+}
+
+// Error component
+function ErrorState({ error }: { error: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <div className="text-red-500 text-xl mb-4">Error loading run</div>
+      <div className="text-gray-600">{error}</div>
+    </div>
+  );
+}
+
+// Separate component for the run statistics content
+function RunStatisticsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const runId = searchParams.get("id");
   const [stats, setStats] = useState<RunStatistics | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchRunStatistics = async () => {
       if (!runId) return;
-      const response = await fetch(`/api/runs/${runId}`);
-      if (response.ok) {
+      try {
+        const response = await fetch(`/api/runs/${runId}`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch run details");
+        }
         const data = await response.json();
         setStats(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      } finally {
+        setLoading(false);
       }
     };
     fetchRunStatistics();
   }, [runId]);
+
+  if (loading) {
+    return <LoadingState />;
+  }
+
+  if (error) {
+    return <ErrorState error={error} />;
+  }
 
   if (!stats) {
     return (
@@ -177,5 +214,14 @@ export default function RunStatistics() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Main component that wraps the content in Suspense
+export default function RunStatistics() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <RunStatisticsContent />
+    </Suspense>
   );
 }
