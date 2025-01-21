@@ -163,7 +163,7 @@ export default function Growth({
             Add Customers
           </h3>
           <div className="grid grid-cols-2 gap-3">
-            {[1000, 5000].map((amount) => (
+            {[10000, 50000].map((amount) => (
               <button
                 key={amount}
                 onClick={() => addCustomers(amount)}

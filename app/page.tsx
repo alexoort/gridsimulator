@@ -1,94 +1,16 @@
 "use client";
 
-import { motion, useMotionValue, useTransform, animate } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useMotionValue, animate } from "framer-motion";
 import { useEffect } from "react";
 
-const gameFeatures = [
-  {
-    title: "Frequency Control",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={1.5}
-        stroke="currentColor"
-        className="w-8 h-8"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"
-        />
-      </svg>
-    ),
-    description: "Maintain grid stability",
-  },
-  {
-    title: "CO2 Reduction",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={1.5}
-        stroke="currentColor"
-        className="w-8 h-8"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M12.75 3.03v.568c0 .334.148.65.405.864l1.068.89c.442.369.535 1.01.216 1.49l-.51.766a2.25 2.25 0 01-1.161.886l-.143.048a1.107 1.107 0 00-.57 1.664c.369.555.169 1.307-.427 1.605L9 13.125l.423 1.059a.956.956 0 01-1.652.928l-.679-.906a1.125 1.125 0 00-1.906.172L4.5 15.75l-.612.153M12.75 3.031a9 9 0 00-8.862 12.872M12.75 3.031a9 9 0 016.69 14.036m0 0l-.177-.529A2.25 2.25 0 0017.128 15H16.5l-.324-.324a1.453 1.453 0 00-2.328.377l-.036.073a1.586 1.586 0 01-.982.816l-.99.282c-.55.157-.894.702-.8 1.267l.073.438c.08.474.49.821.97.821.846 0 1.598.542 1.865 1.345l.215.643m5.276-3.67a9.012 9.012 0 01-5.276 3.67m0 0a9 9 0 01-10.275-4.835M15.75 9c0 .896-.393 1.7-1.016 2.25"
-        />
-      </svg>
-    ),
-    description: "Decarbonize the grid",
-  },
-  {
-    title: "Supply & Demand",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={1.5}
-        stroke="currentColor"
-        className="w-8 h-8"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"
-        />
-      </svg>
-    ),
-    description: "Balance power flow",
-  },
-];
-
 export default function LandingPage() {
-  const router = useRouter();
-
   // First word animation
   const gridCount = useMotionValue(0);
-  const gridRounded = useTransform(gridCount, (latest) => Math.round(latest));
-  const gridText = "Grid";
-  const gridDisplay = useTransform(gridRounded, (latest) =>
-    gridText.slice(0, latest)
-  );
 
   // Second word animation
   const textIndex = useMotionValue(0);
   const texts = ["Game", "Simulator"];
-  const baseText = useTransform(textIndex, (latest) => texts[latest] || "");
   const count = useMotionValue(0);
-  const rounded = useTransform(count, (latest) => Math.round(latest));
-  const displayText = useTransform(rounded, (latest) => {
-    const text = baseText.get().slice(0, latest);
-    console.log("Current text:", text); // Debug log
-    return text;
-  });
 
   // Animation for Grid
   useEffect(() => {
@@ -139,61 +61,137 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
-      <div className="text-6xl font-bold flex items-center mb-8">
-        <motion.div className="text-purple-800">
-          <motion.span>{gridDisplay}</motion.span>
-        </motion.div>
-        <motion.div className="text-purple-600 ml-2">
-          <motion.span>{displayText}</motion.span>
-        </motion.div>
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 6, duration: 0.5 }}
-      >
-        <button
-          onClick={() => {
-            // Simulate login for now
-            router.push("/home");
-          }}
-          className="px-8 py-3 bg-purple-600 text-white rounded-lg shadow-lg hover:bg-purple-700 transform hover:scale-105 transition-all"
-        >
-          Login to Play
-        </button>
-      </motion.div>
-
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 6.5, duration: 0.5 }}
-        className="mt-8 text-gray-600 text-center max-w-md"
-      >
-        Experience the challenge of managing a modern power grid. Balance supply
-        and demand, maintain grid frequency, and decarbonize energy production.
-      </motion.p>
-
-      <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 px-4">
-        {gameFeatures.map((feature, index) => (
-          <motion.div
-            key={feature.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 7 + index * 0.2, duration: 0.5 }}
-            className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow"
-          >
-            <div className="flex flex-col items-center text-center">
-              <div className="text-purple-700 mb-4">{feature.icon}</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                {feature.title}
-              </h3>
-              <p className="text-gray-700">{feature.description}</p>
+    <main className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50">
+      <div className="container mx-auto max-w-7xl px-6 py-12 md:py-24">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="space-y-8">
+            <div>
+              <h1 className="text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-purple-900 text-transparent bg-clip-text">
+                Power Grid Simulator
+              </h1>
+              <p className="text-xl text-purple-700 font-medium">
+                Master the art of grid management and sustainable energy
+              </p>
             </div>
-          </motion.div>
-        ))}
+            <p className="text-gray-600 text-lg leading-relaxed">
+              Take control of a modern power grid, balance supply and demand,
+              maintain grid frequency, and lead the transition to renewable
+              energy. Can you keep the lights on while maximizing profits and
+              minimizing emissions?
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <a
+                href="/welcome"
+                className="group px-8 py-4 bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-xl hover:from-purple-700 hover:to-purple-900 transition-all duration-200 font-medium shadow-lg hover:shadow-purple-200 hover:-translate-y-0.5 text-center"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  Start Playing
+                  <svg
+                    className="w-5 h-5 group-hover:translate-x-1 transition-transform"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 7l5 5m0 0l-5 5m5-5H6"
+                    />
+                  </svg>
+                </span>
+              </a>
+              <a
+                href="/about"
+                className="px-8 py-4 text-purple-700 hover:text-purple-900 hover:bg-purple-50 rounded-xl transition-colors font-medium text-center"
+              >
+                Learn More
+              </a>
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-purple-900/10 rounded-3xl transform rotate-3"></div>
+            <div className="relative bg-white rounded-2xl shadow-xl p-8 space-y-6">
+              <div className="space-y-4">
+                <h3 className="text-xl font-bold text-purple-900">
+                  Key Features
+                </h3>
+                <div className="space-y-3">
+                  {[
+                    {
+                      title: "Real-time Grid Management",
+                      description:
+                        "Balance supply and demand while maintaining grid frequency at 50 Hz",
+                      icon: "⚡",
+                    },
+                    {
+                      title: "Economic Simulation",
+                      description:
+                        "Manage costs, revenue, and invest in new power generation",
+                      icon: "💰",
+                    },
+                    {
+                      title: "Renewable Integration",
+                      description:
+                        "Navigate the challenges of integrating solar and wind power",
+                      icon: "🌱",
+                    },
+                    {
+                      title: "Advanced Controls",
+                      description:
+                        "Use PID controllers and battery storage for grid stability",
+                      icon: "🎮",
+                    },
+                  ].map((feature, index) => (
+                    <div
+                      key={index}
+                      className="flex items-start gap-4 p-4 rounded-xl hover:bg-purple-50 transition-colors"
+                    >
+                      <div className="text-2xl">{feature.icon}</div>
+                      <div>
+                        <h4 className="font-medium text-purple-900">
+                          {feature.title}
+                        </h4>
+                        <p className="text-sm text-gray-600">
+                          {feature.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Statistics Section */}
+        <div className="mt-24 text-center">
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-900 text-transparent bg-clip-text mb-12">
+            Global Statistics
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {[
+              { label: "Active Players", value: "..." },
+              { label: "Total Simulations", value: "..." },
+              { label: "Grid Hours Managed", value: "..." },
+              { label: "CO₂ Saved", value: "..." },
+            ].map((stat, index) => (
+              <div
+                key={index}
+                className="bg-white rounded-xl shadow-lg p-6 transform hover:scale-105 transition-transform duration-200 border border-purple-50"
+              >
+                <div className="text-sm font-medium text-purple-600 mb-1">
+                  {stat.label}
+                </div>
+                <div className="text-3xl font-bold bg-gradient-to-br from-purple-600 to-purple-900 text-transparent bg-clip-text">
+                  {stat.value}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }

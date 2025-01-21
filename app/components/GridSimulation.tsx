@@ -138,7 +138,7 @@ export default function GridSimulation({
     // Derivative term
     const derivative = pid.kd * (error - (pid.lastError || 0));
 
-    let pidCorrection = -(proportional + integralTerm + derivative);
+    const pidCorrection = -(proportional + integralTerm + derivative);
 
     // Update state with clamped integral and generator outputs
     setSimulationState((prev) => {
@@ -231,7 +231,7 @@ export default function GridSimulation({
     if (!currentMarketData) return 0;
 
     // Scale the historical load based on our current customer base
-    const historicalCustomers = 1000000; // Baseline customer count
+    const historicalCustomers = 7500000; // Baseline customer count https://www.iso-ne.com/about/key-stats
     const customerRatio =
       simulationState.network.customers / historicalCustomers;
     return currentMarketData.load_mw * customerRatio;
@@ -470,7 +470,7 @@ export default function GridSimulation({
   const calculatePrice = (deviations: number[]) => {
     // Calculate average deviation for base price
     const avgDeviation = deviations.reduce((a, b) => a + b) / deviations.length;
-    const MaxDeviation = 2;
+    const MaxDeviation = 1;
     const normalizedDeviation = Math.min(avgDeviation / MaxDeviation, 1);
     let price = 200 - normalizedDeviation * 180; // Base price range 20-200
 
@@ -488,99 +488,6 @@ export default function GridSimulation({
 
     return price;
   };
-
-  const updateSimulation = useCallback(() => {
-    setSimulationState((prev) => {
-      // Progress time
-      let newHour = prev.currentHour + 1;
-      let newDate = prev.currentDate;
-
-      // If we've reached the end of the day
-      if (newHour >= 24) {
-        newHour = 0;
-        newDate = getNextDate(prev.currentDate);
-      }
-
-      // Progress through market data
-      const nextDataIndex = (currentDataIndex + 1) % marketData.length;
-      setCurrentDataIndex(nextDataIndex);
-
-      // Calculate initial supply and demand
-      const baseSupply = calculateSupply();
-      const load = calculateLoad();
-
-      // Calculate battery contribution
-      const batteryPower = calculateBatteryPower(baseSupply, load);
-      const totalSupply = baseSupply - batteryPower; // Subtract because negative means discharge
-
-      // Update battery state
-      const newBatteryState = updateBatteryState(batteryPower);
-
-      // Calculate grid frequency with battery contribution
-      const frequency = calculateFrequency(
-        totalSupply,
-        load,
-        prev.network.frequency
-      );
-
-      // Update frequency history
-      // Keep only the last 12 data points
-      const newFrequencyHistory = [
-        ...(prev.network.frequencyHistory || []).slice(-11),
-        { frequency, timestamp: Date.now() },
-      ];
-
-      // Track frequency deviation for this tick
-      const currentDeviation = Math.abs(frequency - 50);
-      const updatedDeviations = [
-        ...(prev.market.dailyFrequencyDeviations || []),
-        currentDeviation,
-      ];
-
-      // Update price every 24 data points
-      const shouldUpdatePrice = updatedDeviations.length >= 24;
-
-      // Calculate new price if needed
-      let newPrice = prev.market.pricePerMWh;
-      if (shouldUpdatePrice) {
-        newPrice = calculatePrice(updatedDeviations);
-      }
-
-      // Calculate financial update
-      const netIncome = calculateFinancials(
-        totalSupply,
-        batteryPower,
-        prev.market.pricePerMWh
-      );
-
-      // If date changed, update our local state
-      if (newDate !== prev.currentDate) {
-        setCurrentDate(newDate);
-      }
-
-      return {
-        ...prev,
-        network: {
-          ...prev.network,
-          supplyMW: totalSupply,
-          loadMW: load,
-          frequency,
-          timeOfDay: newHour,
-          frequencyHistory: newFrequencyHistory,
-        },
-        market: {
-          ...prev.market,
-          pricePerMWh: shouldUpdatePrice ? newPrice : prev.market.pricePerMWh,
-          dailyFrequencyDeviations: shouldUpdatePrice ? [] : updatedDeviations,
-        },
-        battery: newBatteryState,
-        balance: prev.balance + netIncome,
-        currentDate: newDate,
-        currentHour: newHour,
-        iteration: prev.iteration + 1,
-      };
-    });
-  }, [setSimulationState]);
 
   // Update simulation state
   useEffect(() => {

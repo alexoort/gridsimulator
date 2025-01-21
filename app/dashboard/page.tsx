@@ -13,6 +13,15 @@ import PIDController from "../components/PIDController";
 import Sustainability from "../components/Sustainability";
 import { useRouter } from "next/navigation";
 
+// Define emissions factors (kg CO2 per MWh) based on lifecycle analysis
+const EMISSIONS_FACTORS: Record<string, number> = {
+  solar: 41, // Solar PV - roof
+  wind: 11, // Wind offshore (using lowest wind value)
+  nuclear: 12, // Nuclear
+  hydro: 24, // Hydropower
+  coal: 820, // Coal
+};
+
 export default function Dashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -39,7 +48,7 @@ export default function Dashboard() {
       frequency: 50.0,
       loadMW: 0,
       supplyMW: 0,
-      customers: 30000,
+      customers: 300000,
       isRunning: false,
       speed: 1,
       timeOfDay: 0,
@@ -109,37 +118,89 @@ export default function Dashboard() {
     simulationState.currentHour
   );
 
-  const handleEndSimulation = async () => {
+  // Export the handleEndSimulation function
+  const handleEndSimulation = async (reason?: string) => {
+    // First, stop the simulation
+    setSimulationState((prev) => ({
+      ...prev,
+      network: {
+        ...prev.network,
+        isRunning: false,
+      },
+    }));
+
+    // Get user ID from localStorage
+    const userStr = localStorage.getItem("user");
+    if (!userStr) {
+      return;
+    }
+    const user = JSON.parse(userStr);
+
+    // Calculate total generation and emissions using the same logic as Sustainability component
+    const totalGeneration = simulationState.generators.reduce(
+      (sum, gen) => sum + gen.currentOutput,
+      0
+    );
+
+    const generatorStats = simulationState.generators.reduce(
+      (acc, generator) => {
+        const type = generator.type;
+        if (!acc[type]) {
+          acc[type] = {
+            output: 0,
+            emissions: 0,
+            percentage: 0,
+          };
+        }
+        acc[type].output += generator.currentOutput;
+        acc[type].emissions +=
+          generator.currentOutput * (EMISSIONS_FACTORS[type] || 0);
+        acc[type].percentage =
+          (acc[type].output / Math.max(totalGeneration, 1)) * 100;
+        return acc;
+      },
+      {} as Record<
+        string,
+        { output: number; emissions: number; percentage: number }
+      >
+    );
+
+    // Calculate total emissions and renewable percentage
+    const totalEmissions = Object.values(generatorStats).reduce(
+      (sum, stats) => sum + stats.emissions,
+      0
+    );
+
+    const renewableGeneration = simulationState.generators
+      .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
+      .reduce((sum, g) => sum + g.currentOutput, 0);
+    const renewablePercentage =
+      totalGeneration > 0 ? (renewableGeneration / totalGeneration) * 100 : 0;
+
+    // Calculate average frequency from history
+    const frequencyAverage =
+      simulationState.network.frequencyHistory.length > 0
+        ? simulationState.network.frequencyHistory.reduce(
+            (sum, entry) => sum + entry.frequency,
+            0
+          ) / simulationState.network.frequencyHistory.length
+        : 50.0;
+
     // Calculate run statistics
     const stats = {
-      startDate: "2024-01-01", // Initial date
-      endDate: simulationState.currentDate,
-      duration: `${simulationState.iteration} ticks`,
-      averageFrequency:
-        simulationState.network.frequencyHistory.reduce(
-          (sum, entry) => sum + entry.frequency,
-          0
-        ) / Math.max(simulationState.network.frequencyHistory.length, 1),
-      maxFrequencyDeviation: Math.max(
-        ...simulationState.network.frequencyHistory.map((entry) =>
-          Math.abs(entry.frequency - 50)
-        )
-      ),
-      averagePrice: simulationState.market.pricePerMWh,
-      totalRevenue: simulationState.balance - 10000, // Subtract initial balance
-      totalCosts: 0, // You'll need to track this separately
-      profit: simulationState.balance - 10000,
-      renewablePercentage:
-        (simulationState.generators
-          .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
-          .reduce((sum, g) => sum + g.currentOutput, 0) /
-          simulationState.generators.reduce(
-            (sum, g) => sum + g.currentOutput,
-            0
-          )) *
-        100,
-      totalEmissions: 0, // You'll need to track this
-      averageGridIntensity: 0, // You'll need to track this
+      userId: Number(user.id),
+      startTime: "2024-01-01T00:00:00Z",
+      endTime: new Date(
+        `${simulationState.currentDate}T${simulationState.currentHour
+          .toString()
+          .padStart(2, "0")}:00:00Z`
+      ).toISOString(),
+      moneyMade: Number(simulationState.balance - 10000),
+      frequencyAverage: Number(frequencyAverage),
+      maxRenewablePercentage: Number(renewablePercentage),
+      totalEmissions: Number(totalEmissions),
+      endReason: reason || "manual",
+      realDate: new Date().toISOString(),
     };
 
     try {
@@ -152,7 +213,9 @@ export default function Dashboard() {
         body: JSON.stringify(stats),
       });
 
-      if (!response.ok) throw new Error("Failed to save run");
+      if (!response.ok) {
+        throw new Error(`Failed to save run: ${response.statusText}`);
+      }
 
       const { id } = await response.json();
 
@@ -179,27 +242,29 @@ export default function Dashboard() {
         iteration: 0,
       }));
 
-      // Redirect to statistics page
-      router.push(`/runs?id=${id}`);
+      router.push(`/runs/${id}`);
     } catch (error) {
-      console.error("Failed to save run:", error);
+      console.error("Error saving run:", error);
       // You might want to show an error message to the user here
     }
   };
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4">
-      <div className="container mx-auto">
-        <div className="flex justify-between items-center mb-2">
-          <h1 className="text-2xl font-bold text-purple-800">
-            Power Grid Simulator
-          </h1>
+    <main className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 p-4 md:p-6">
+      <div className="container mx-auto max-w-7xl">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-900 text-transparent bg-clip-text">
+              Power Grid Simulator
+            </h1>
+          </div>
 
           {/* Simulation Controls */}
-          <div className="flex items-center space-x-4">
-            <div className="bg-white rounded-lg shadow-lg p-3">
-              <div className="space-y-1">
-                <h3 className="text-xs font-medium text-purple-800">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 w-full md:w-auto">
+            {/* Speed Control */}
+            <div className="bg-white rounded-2xl shadow-lg p-4 flex-1 md:flex-initial">
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-purple-900">
                   Simulation Speed
                 </h3>
                 <input
@@ -216,7 +281,7 @@ export default function Dashboard() {
                       },
                     }))
                   }
-                  className="w-full"
+                  className="w-full accent-purple-600"
                   disabled={!simulationState.network.isRunning}
                 />
                 <div className="flex justify-between text-xs text-gray-600">
@@ -235,7 +300,7 @@ export default function Dashboard() {
                           },
                         }))
                       }
-                      className="w-full py-1.5 px-4 rounded-lg font-medium bg-yellow-500 hover:bg-yellow-600 text-white transition-colors"
+                      className="w-full py-2 px-4 rounded-xl font-medium bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-white transition-all duration-200 shadow-lg hover:shadow-yellow-200 hover:-translate-y-0.5"
                     >
                       Pause
                     </button>
@@ -251,13 +316,13 @@ export default function Dashboard() {
                             },
                           }))
                         }
-                        className="flex-1 py-1.5 px-4 rounded-lg font-medium bg-green-500 hover:bg-green-600 text-white transition-colors"
+                        className="flex-1 py-2 px-4 rounded-xl font-medium bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white transition-all duration-200 shadow-lg hover:shadow-green-200 hover:-translate-y-0.5"
                       >
                         Continue
                       </button>
                       <button
-                        onClick={handleEndSimulation}
-                        className="flex-1 py-1.5 px-4 rounded-lg font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+                        onClick={() => handleEndSimulation()}
+                        className="flex-1 py-2 px-4 rounded-xl font-medium bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white transition-all duration-200 shadow-lg hover:shadow-red-200 hover:-translate-y-0.5"
                       >
                         End
                       </button>
@@ -267,18 +332,19 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-lg p-3">
-              <div className="text-base font-medium text-gray-800">
+            {/* Time Display */}
+            <div className="bg-white rounded-2xl shadow-lg p-4 flex-1 md:flex-initial">
+              <div className="text-base font-medium text-purple-900">
                 {formattedDate}
               </div>
-              <div className="text-2xl font-bold text-purple-600">
+              <div className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-900 text-transparent bg-clip-text">
                 {formattedTime}
               </div>
-              <div className="text-xs text-gray-600 mt-1">
+              <div className="text-sm mt-1">
                 {simulationState.network.isRunning ? (
-                  <span className="text-green-600">Simulation Running</span>
+                  <span className="text-green-600 font-medium">● Running</span>
                 ) : (
-                  <span className="text-yellow-500">Simulation Paused</span>
+                  <span className="text-yellow-500 font-medium">● Paused</span>
                 )}
               </div>
             </div>
@@ -305,6 +371,7 @@ export default function Dashboard() {
               <NetworkStatus
                 simulationState={simulationState}
                 setSimulationState={setSimulationState}
+                onNetworkError={() => handleEndSimulation("network_failure")}
               />
               <PIDController
                 simulationState={simulationState}

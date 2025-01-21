@@ -20,8 +20,9 @@ export async function initializeDatabase() {
         start_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         end_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         money_made DECIMAL,
-        max_frequency DECIMAL,
-        min_frequency DECIMAL,
+        frequency_average DECIMAL,
+        max_renewable_percentage DECIMAL,
+        total_emissions DECIMAL,
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
     `;
