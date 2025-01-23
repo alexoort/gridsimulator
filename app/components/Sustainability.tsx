@@ -1,6 +1,7 @@
 "use client";
 
 import { SimulationState } from "../types/grid";
+import { useEffect, useState } from "react";
 
 interface SustainabilityProps {
   simulationState: SimulationState;
@@ -50,12 +51,27 @@ export default function Sustainability({
   const emissionsIntensity =
     totalGeneration > 0 ? totalEmissions / totalGeneration : 0;
 
-  // Calculate renewable generation percentage
+  // Calculate current renewable percentage
   const renewableGeneration = simulationState.generators
     .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
     .reduce((sum, g) => sum + g.currentOutput, 0);
   const renewablePercentage =
     totalGeneration > 0 ? (renewableGeneration / totalGeneration) * 100 : 0;
+
+  // Get cumulative emissions and max renewable percentage from localStorage
+  const [cumulativeEmissions, setCumulativeEmissions] = useState(0);
+  const [maxRenewablePercentage, setMaxRenewablePercentage] = useState(0);
+
+  useEffect(() => {
+    const storedEmissions = localStorage.getItem("cumulativeEmissions");
+    const storedMaxPercentage = localStorage.getItem("maxRenewablePercentage");
+    if (storedEmissions) {
+      setCumulativeEmissions(parseFloat(storedEmissions));
+    }
+    if (storedMaxPercentage) {
+      setMaxRenewablePercentage(parseFloat(storedMaxPercentage));
+    }
+  }, [totalEmissions]);
 
   // Helper function to get color based on intensity
   const getIntensityColor = (intensity: number) => {
@@ -80,7 +96,7 @@ export default function Sustainability({
       {/* Overall Stats */}
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm text-gray-600">Total Emissions</p>
+          <p className="text-sm text-gray-600">Current Emissions Rate</p>
           <p className="text-xl font-semibold">
             {totalEmissions.toFixed(1)} kg CO₂/h
           </p>
@@ -93,12 +109,29 @@ export default function Sustainability({
         </div>
       </div>
 
+      {/* Cumulative Emissions */}
+      <div className="mb-6">
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <p className="text-sm text-gray-600">Total Cumulative Emissions</p>
+          <p className="text-xl font-semibold">
+            {(cumulativeEmissions / 1000).toFixed(2)} tonnes CO₂
+          </p>
+          <p className="text-xs text-gray-500">Since simulation start</p>
+        </div>
+      </div>
+
       {/* Renewable Mix */}
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm text-gray-600">Renewable Mix</p>
+          <p className="text-sm text-gray-600">Current Renewable Mix</p>
           <p className={getRenewableColor(renewablePercentage)}>
             {renewablePercentage.toFixed(1)}%
+          </p>
+        </div>
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <p className="text-sm text-gray-600">Maximum Renewable Mix</p>
+          <p className={getRenewableColor(maxRenewablePercentage)}>
+            {maxRenewablePercentage.toFixed(1)}%
           </p>
         </div>
       </div>

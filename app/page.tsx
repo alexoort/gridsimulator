@@ -84,7 +84,7 @@ export default function LandingPage() {
                 href="/welcome"
                 className="group px-8 py-4 bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-xl hover:from-purple-700 hover:to-purple-900 transition-all duration-200 font-medium shadow-lg hover:shadow-purple-200 hover:-translate-y-0.5 text-center"
               >
-                <span className="flex items-center justify-center gap-2">
+                <span className="flex items-center justify-center gap-2 text-white">
                   Start Playing
                   <svg
                     className="w-5 h-5 group-hover:translate-x-1 transition-transform"

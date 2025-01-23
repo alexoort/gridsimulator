@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { SimulationState } from "../types/grid";
 import FrequencyDial from "./FrequencyDial";
 import GameOverModal from "./GameOverModal";
@@ -28,28 +28,34 @@ export default function NetworkStatus({
     return sum + (generator.currentOutput > 0 ? generator.inertia : 0);
   }, 0);
 
-  const handleGameOver = () => {
-    setSimulationState((prev) => ({
-      ...prev,
-      network: {
-        ...prev.network,
-        isRunning: false,
-      },
-    }));
-    setShowGameOver(true);
-    // Store the run in the background
-    onNetworkError();
-  };
-
-  const handleReturnHome = () => {
-    setShowGameOver(false);
-    window.location.href = "/";
-  };
+  const handleGameOver = useCallback(() => {
+    if (!showGameOver) {
+      setSimulationState((prev) => ({
+        ...prev,
+        network: {
+          ...prev.network,
+          isRunning: false,
+        },
+      }));
+      setShowGameOver(true);
+    }
+  }, [showGameOver, setSimulationState]);
 
   // Check for critical frequency deviation
-  if (deviation >= 2.0 && simulationState.network.isRunning && !showGameOver) {
-    handleGameOver();
-  }
+  useEffect(() => {
+    if (
+      deviation >= 2.0 &&
+      simulationState.network.isRunning &&
+      !showGameOver
+    ) {
+      handleGameOver();
+    }
+  }, [
+    deviation,
+    simulationState.network.isRunning,
+    showGameOver,
+    handleGameOver,
+  ]);
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
@@ -78,7 +84,7 @@ export default function NetworkStatus({
       {showGameOver && (
         <GameOverModal
           frequency={simulationState.network.frequency}
-          onRestart={handleReturnHome}
+          onRestart={onNetworkError}
           buttonText="Return to Home"
         />
       )}

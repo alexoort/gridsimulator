@@ -23,6 +23,11 @@ export async function initializeDatabase() {
         frequency_average DECIMAL,
         max_renewable_percentage DECIMAL,
         total_emissions DECIMAL,
+        total_generation DECIMAL,
+        real_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        end_reason VARCHAR(50),
+        max_customers INTEGER,
+        grid_intensity DECIMAL,
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
     `;

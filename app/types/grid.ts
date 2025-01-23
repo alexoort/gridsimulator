@@ -55,4 +55,16 @@ export interface SimulationState {
   iteration: number;
   currentDate: string;
   currentHour: number;
-} 
+}
+
+// Define emissions factors (kg CO2 per MWh) based on lifecycle analysis
+export const EMISSIONS_FACTORS: Record<string, number> = {
+  solar: 41, // Solar PV - roof
+  wind: 11, // Wind offshore (using lowest wind value)
+  nuclear: 12, // Nuclear
+  hydro: 24, // Hydropower
+  coal: 820, // Coal
+};
+
+// Other shared constants can go here
+export const INITIAL_BALANCE = 10000; 

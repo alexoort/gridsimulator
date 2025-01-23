@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import NetworkStatus from "../components/NetworkStatus";
+import NetworkStatusComponent from "../components/NetworkStatus";
 import Growth from "../components/Growth";
 import { SimulationState } from "../types/grid";
 import GridSimulation from "../components/GridSimulation";
@@ -12,69 +12,65 @@ import PowerGraph from "../components/PowerGraph";
 import PIDController from "../components/PIDController";
 import Sustainability from "../components/Sustainability";
 import { useRouter } from "next/navigation";
+import { INITIAL_BALANCE } from "../types/grid";
 
-// Define emissions factors (kg CO2 per MWh) based on lifecycle analysis
-const EMISSIONS_FACTORS: Record<string, number> = {
-  solar: 41, // Solar PV - roof
-  wind: 11, // Wind offshore (using lowest wind value)
-  nuclear: 12, // Nuclear
-  hydro: 24, // Hydropower
-  coal: 820, // Coal
-};
+const getInitialState = (): SimulationState => ({
+  network: {
+    frequency: 50.0,
+    loadMW: 0,
+    supplyMW: 0,
+    customers: 300000,
+    isRunning: false,
+    speed: 1,
+    timeOfDay: 0,
+    frequencyHistory: [],
+    pid: {
+      kp: 12,
+      ki: 4,
+      kd: 8,
+      integral: 0,
+      lastError: undefined,
+      useBattery: false,
+    },
+  },
+  battery: {
+    capacity: 40,
+    currentCharge: 10,
+    maxRate: 5,
+    efficiency: 0.95,
+    currentOutput: 0,
+  },
+  generators: [
+    {
+      id: "initial-coal",
+      type: "coal",
+      capacity: 500,
+      currentOutput: 0,
+      cost: 3000,
+      variableCost: 20,
+      inertia: 4,
+    },
+  ],
+  market: {
+    pricePerMWh: 50,
+    lastPriceUpdate: Date.now(),
+    dailyFrequencyDeviations: [],
+    solarData: Array(24).fill(0.5),
+    windData: Array(24).fill(0.7),
+    demandData: Array(24).fill(1000),
+  },
+  balance: INITIAL_BALANCE,
+  iteration: 0,
+  currentDate: "2024-01-01",
+  currentHour: 0,
+});
 
 export default function Dashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [simulationState, setSimulationState] = useState<SimulationState>({
-    generators: [
-      {
-        id: "initial-coal",
-        type: "coal",
-        capacity: 500,
-        currentOutput: 0,
-        cost: 3000,
-        variableCost: 20,
-        inertia: 4,
-      },
-    ],
-    battery: {
-      capacity: 40,
-      currentCharge: 10,
-      maxRate: 5,
-      efficiency: 0.95,
-      currentOutput: 0,
-    },
-    network: {
-      frequency: 50.0,
-      loadMW: 0,
-      supplyMW: 0,
-      customers: 300000,
-      isRunning: false,
-      speed: 1,
-      timeOfDay: 0,
-      frequencyHistory: [],
-      pid: {
-        kp: 12,
-        ki: 4,
-        kd: 8,
-        integral: 0,
-        lastError: 0,
-        useBattery: false,
-      },
-    },
-    market: {
-      pricePerMWh: 50,
-      lastPriceUpdate: Date.now(),
-      dailyFrequencyDeviations: [],
-      solarData: Array(24).fill(0.5),
-      windData: Array(24).fill(0.7),
-      demandData: Array(24).fill(1000),
-    },
-    balance: 10000,
-    iteration: 0,
-    currentDate: "2024-01-01",
-    currentHour: 0,
-  });
+  const [simulationState, setSimulationState] = useState<SimulationState>(
+    getInitialState()
+  );
 
   // Format date for display - using UTC to ensure consistency
   const formatDateTime = (date: string, hour: number) => {
@@ -120,7 +116,7 @@ export default function Dashboard() {
 
   // Export the handleEndSimulation function
   const handleEndSimulation = async (reason?: string) => {
-    // First, stop the simulation
+    // Stop the simulation first
     setSimulationState((prev) => ({
       ...prev,
       network: {
@@ -129,78 +125,60 @@ export default function Dashboard() {
       },
     }));
 
-    // Get user ID from localStorage
+    // Get user from localStorage
     const userStr = localStorage.getItem("user");
     if (!userStr) {
+      console.error("No user found in localStorage");
       return;
     }
     const user = JSON.parse(userStr);
 
-    // Calculate total generation and emissions using the same logic as Sustainability component
-    const totalGeneration = simulationState.generators.reduce(
-      (sum, gen) => sum + gen.currentOutput,
-      0
+    // Get cumulative values from localStorage
+    const cumulativeGeneration = parseFloat(
+      localStorage.getItem("cumulativeGeneration") || "0"
+    );
+    const cumulativeEmissions = parseFloat(
+      localStorage.getItem("cumulativeEmissions") || "0"
     );
 
-    const generatorStats = simulationState.generators.reduce(
-      (acc, generator) => {
-        const type = generator.type;
-        if (!acc[type]) {
-          acc[type] = {
-            output: 0,
-            emissions: 0,
-            percentage: 0,
-          };
-        }
-        acc[type].output += generator.currentOutput;
-        acc[type].emissions +=
-          generator.currentOutput * (EMISSIONS_FACTORS[type] || 0);
-        acc[type].percentage =
-          (acc[type].output / Math.max(totalGeneration, 1)) * 100;
-        return acc;
-      },
-      {} as Record<
-        string,
-        { output: number; emissions: number; percentage: number }
-      >
+    // Calculate metrics
+    const frequencyDeviations =
+      simulationState.network.frequencyHistory?.map((entry) =>
+        Math.abs(entry.frequency - 50)
+      ) || [];
+
+    const averageFrequencyDeviation =
+      frequencyDeviations.reduce((sum, deviation) => sum + deviation, 0) /
+      frequencyDeviations.length;
+
+    const maxCustomers = simulationState.network.customers || 0;
+
+    const maxRenewablePercentage = parseFloat(
+      localStorage.getItem("maxRenewablePercentage") || "0"
     );
 
-    // Calculate total emissions and renewable percentage
-    const totalEmissions = Object.values(generatorStats).reduce(
-      (sum, stats) => sum + stats.emissions,
-      0
-    );
+    // delete cumulativeGeneration and cumulativeEmissions from localStorage
+    localStorage.removeItem("cumulativeGeneration");
+    localStorage.removeItem("cumulativeEmissions");
+    localStorage.removeItem("maxRenewablePercentage");
 
-    const renewableGeneration = simulationState.generators
-      .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
-      .reduce((sum, g) => sum + g.currentOutput, 0);
-    const renewablePercentage =
-      totalGeneration > 0 ? (renewableGeneration / totalGeneration) * 100 : 0;
+    const gridIntensity =
+      cumulativeGeneration > 0 ? cumulativeEmissions / cumulativeGeneration : 0;
 
-    // Calculate average frequency from history
-    const frequencyAverage =
-      simulationState.network.frequencyHistory.length > 0
-        ? simulationState.network.frequencyHistory.reduce(
-            (sum, entry) => sum + entry.frequency,
-            0
-          ) / simulationState.network.frequencyHistory.length
-        : 50.0;
-
-    // Calculate run statistics
+    // Prepare stats object
     const stats = {
       userId: Number(user.id),
-      startTime: "2024-01-01T00:00:00Z",
-      endTime: new Date(
-        `${simulationState.currentDate}T${simulationState.currentHour
-          .toString()
-          .padStart(2, "0")}:00:00Z`
-      ).toISOString(),
-      moneyMade: Number(simulationState.balance - 10000),
-      frequencyAverage: Number(frequencyAverage),
-      maxRenewablePercentage: Number(renewablePercentage),
-      totalEmissions: Number(totalEmissions),
-      endReason: reason || "manual",
+      startTime: "2024-01-01T00:00:00.000Z",
+      endTime: simulationState.currentDate,
+      moneyMade: simulationState.balance - INITIAL_BALANCE,
+      averageFrequencyDeviation,
+      maxRenewablePercentage,
+      totalEmissions: cumulativeEmissions, // Use cumulative emissions instead
+      totalGeneration: cumulativeGeneration, // Add cumulative generation
       realDate: new Date().toISOString(),
+      endReason: reason || "manual",
+      maxCustomers,
+      gridIntensity,
     };
 
     try {
@@ -214,7 +192,7 @@ export default function Dashboard() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to save run: ${response.statusText}`);
+        throw new Error("Failed to save run");
       }
 
       const { id } = await response.json();
@@ -225,27 +203,17 @@ export default function Dashboard() {
         network: {
           ...prev.network,
           isRunning: false,
-          frequency: 50.0,
-          frequencyHistory: [],
-          pid: {
-            ...prev.network.pid,
-            integral: 0,
-            lastError: 0,
-          },
         },
-        market: {
-          ...prev.market,
-          dailyFrequencyDeviations: [],
-        },
-        currentDate: "2024-01-01",
-        currentHour: 0,
-        iteration: 0,
       }));
 
+      // Clear cumulative values from localStorage
+      localStorage.removeItem("cumulativeGeneration");
+      localStorage.removeItem("cumulativeEmissions");
+
+      // Redirect to run statistics page
       router.push(`/runs/${id}`);
     } catch (error) {
       console.error("Error saving run:", error);
-      // You might want to show an error message to the user here
     }
   };
 
@@ -368,7 +336,7 @@ export default function Dashboard() {
               <BatteryStatus simulationState={simulationState} />
             </div>
             <div className="space-y-6">
-              <NetworkStatus
+              <NetworkStatusComponent
                 simulationState={simulationState}
                 setSimulationState={setSimulationState}
                 onNetworkError={() => handleEndSimulation("network_failure")}

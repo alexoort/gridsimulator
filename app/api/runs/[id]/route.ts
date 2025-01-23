@@ -25,7 +25,11 @@ export async function GET(request: Request) {
         r.frequency_average::numeric as "frequencyAverage",
         r.max_renewable_percentage::numeric as "maxRenewablePercentage",
         r.total_emissions::numeric as "totalEmissions",
+        r.total_generation::numeric as "totalGeneration",
         r.real_date as "realDate",
+        r.end_reason as "endReason",
+        r.max_customers as "maxCustomers",
+        r.grid_intensity::numeric as "gridIntensity",
         u.username
       FROM runs r
       JOIN users u ON r.user_id = u.id
@@ -47,7 +51,10 @@ export async function GET(request: Request) {
       moneyMade: parseFloat(run.moneyMade),
       frequencyAverage: parseFloat(run.frequencyAverage),
       maxRenewablePercentage: parseFloat(run.maxRenewablePercentage),
-      totalEmissions: parseFloat(run.totalEmissions)
+      totalEmissions: parseFloat(run.totalEmissions),
+      totalGeneration: parseFloat(run.totalGeneration),
+      gridIntensity: parseFloat(run.gridIntensity),
+      maxCustomers: parseInt(run.maxCustomers)
     };
 
     return NextResponse.json(processed);

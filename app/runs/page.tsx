@@ -5,18 +5,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 interface RunStatistics {
   id: string;
-  startDate: string;
-  endDate: string;
-  duration: string;
-  averageFrequency: number;
-  maxFrequencyDeviation: number;
-  averagePrice: number;
-  totalRevenue: number;
-  totalCosts: number;
-  profit: number;
-  renewablePercentage: number;
+  userId: number;
+  startTime: string;
+  endTime: string;
+  moneyMade: number;
+  frequencyAverage: number;
+  maxRenewablePercentage: number;
   totalEmissions: number;
-  averageGridIntensity: number;
+  totalGeneration: number;
+  realDate: string;
+  endReason: string;
+  maxCustomers: number;
+  gridIntensity: number;
+  username: string;
 }
 
 // Loading component
@@ -112,15 +113,17 @@ function RunStatisticsContent() {
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3 bg-gray-50 rounded-lg">
                 <div className="text-sm text-gray-600">Start Date</div>
-                <div className="text-lg font-semibold">{stats.startDate}</div>
+                <div className="text-lg font-semibold">{stats.startTime}</div>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg">
                 <div className="text-sm text-gray-600">End Date</div>
-                <div className="text-lg font-semibold">{stats.endDate}</div>
+                <div className="text-lg font-semibold">{stats.endTime}</div>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg col-span-2">
                 <div className="text-sm text-gray-600">Duration</div>
-                <div className="text-lg font-semibold">{stats.duration}</div>
+                <div className="text-lg font-semibold">
+                  {stats.endTime.split("T")[1]}
+                </div>
               </div>
             </div>
           </div>
@@ -134,13 +137,33 @@ function RunStatisticsContent() {
               <div className="p-3 bg-gray-50 rounded-lg">
                 <div className="text-sm text-gray-600">Average Frequency</div>
                 <div className="text-lg font-semibold">
-                  {stats.averageFrequency.toFixed(3)} Hz
+                  {stats.frequencyAverage
+                    ? stats.frequencyAverage.toFixed(3)
+                    : "N/A"}{" "}
+                  Hz
                 </div>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-600">Max Deviation</div>
+                <div className="text-sm text-gray-600">Total Generation</div>
                 <div className="text-lg font-semibold">
-                  {stats.maxFrequencyDeviation.toFixed(3)} Hz
+                  {stats.totalGeneration
+                    ? (stats.totalGeneration / 1000).toFixed(1)
+                    : "N/A"}{" "}
+                  GWh
+                </div>
+              </div>
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <div className="text-sm text-gray-600">Peak Customers</div>
+                <div className="text-lg font-semibold">
+                  {stats.maxCustomers
+                    ? stats.maxCustomers.toLocaleString()
+                    : "N/A"}
+                </div>
+              </div>
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <div className="text-sm text-gray-600">End Reason</div>
+                <div className="text-lg font-semibold">
+                  {stats.endReason || "N/A"}
                 </div>
               </div>
             </div>
@@ -153,31 +176,20 @@ function RunStatisticsContent() {
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-600">Average Price</div>
+                <div className="text-sm text-gray-600">Money Made</div>
                 <div className="text-lg font-semibold">
-                  ${stats.averagePrice.toFixed(2)}/MWh
+                  ${stats.moneyMade ? stats.moneyMade.toLocaleString() : "N/A"}
                 </div>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-600">Total Revenue</div>
-                <div className="text-lg font-semibold">
-                  ${stats.totalRevenue.toLocaleString()}
+                <div className="text-sm text-gray-600">
+                  Max Renewable Percentage
                 </div>
-              </div>
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-600">Total Costs</div>
                 <div className="text-lg font-semibold">
-                  ${stats.totalCosts.toLocaleString()}
-                </div>
-              </div>
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-600">Net Profit</div>
-                <div
-                  className={`text-lg font-semibold ${
-                    stats.profit >= 0 ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  ${stats.profit.toLocaleString()}
+                  {stats.maxRenewablePercentage
+                    ? stats.maxRenewablePercentage.toFixed(1)
+                    : "N/A"}
+                  %
                 </div>
               </div>
             </div>
@@ -190,23 +202,19 @@ function RunStatisticsContent() {
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-600">Renewable Mix</div>
+                <div className="text-sm text-gray-600">Total Emissions</div>
                 <div className="text-lg font-semibold">
-                  {stats.renewablePercentage.toFixed(1)}%
+                  {stats.totalEmissions
+                    ? (stats.totalEmissions / 1000).toFixed(1)
+                    : "N/A"}{" "}
+                  tonnes CO₂
                 </div>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-600">Total Emissions</div>
+                <div className="text-sm text-gray-600">Grid Intensity</div>
                 <div className="text-lg font-semibold">
-                  {(stats.totalEmissions / 1000).toFixed(1)} tonnes CO₂
-                </div>
-              </div>
-              <div className="p-3 bg-gray-50 rounded-lg col-span-2">
-                <div className="text-sm text-gray-600">
-                  Average Grid Intensity
-                </div>
-                <div className="text-lg font-semibold">
-                  {stats.averageGridIntensity.toFixed(1)} kg CO₂/MWh
+                  {stats.gridIntensity ? stats.gridIntensity.toFixed(1) : "N/A"}{" "}
+                  kg CO₂/MWh
                 </div>
               </div>
             </div>

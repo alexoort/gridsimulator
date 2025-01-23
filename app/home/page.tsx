@@ -14,6 +14,7 @@ interface RunSummary {
   maxRenewablePercentage: number;
   totalEmissions: number;
   realDate: string;
+  gridIntensity: number;
   username?: string;
 }
 
@@ -23,22 +24,6 @@ interface LeaderboardEntry {
   bestProfit: number;
   bestFrequency: number;
   bestRenewable: number;
-}
-
-function calculateDurationInMonths(startTime: string, endTime: string): string {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-
-  // Calculate the difference in months
-  const months =
-    (end.getFullYear() - start.getFullYear()) * 12 +
-    (end.getMonth() - start.getMonth());
-  const days = end.getDate() - start.getDate();
-
-  // Adjust for partial months
-  const totalMonths = months + (days > 0 ? 0.5 : 0);
-
-  return totalMonths === 1 ? "1 month" : `${totalMonths} months`;
 }
 
 export default function HomePage() {
@@ -127,7 +112,7 @@ export default function HomePage() {
               onClick={() => router.push("/dashboard")}
               className="group px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-xl hover:from-purple-700 hover:to-purple-900 transition-all duration-200 font-medium shadow-lg hover:shadow-purple-200 hover:-translate-y-0.5"
             >
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2 text-white">
                 Start New Simulation
                 <svg
                   className="w-4 h-4 group-hover:translate-x-1 transition-transform"
@@ -177,7 +162,7 @@ export default function HomePage() {
             </div>
             <div className="bg-white rounded-xl shadow-lg p-6 transform hover:scale-105 transition-transform duration-200 border border-purple-50">
               <div className="text-sm font-medium text-purple-600 mb-1">
-                Best Frequency
+                Best Frequency Deviation
               </div>
               <div className="text-3xl font-bold bg-gradient-to-br from-purple-600 to-purple-900 text-transparent bg-clip-text">
                 {myRuns.length > 0
@@ -237,23 +222,15 @@ export default function HomePage() {
                   <div
                     key={run.id}
                     onClick={() => router.push(`/runs/${run.id}`)}
-                    className="p-6 bg-gradient-to-br from-purple-50 to-white rounded-xl hover:shadow-md cursor-pointer transition-all duration-200 hover:-translate-y-1 border border-purple-100"
+                    className="p-4 bg-gradient-to-br from-purple-50 to-white rounded-xl hover:shadow-md cursor-pointer transition-all duration-200 hover:-translate-y-1 border border-purple-100"
                   >
-                    <div className="text-sm font-bold text-purple-800 mb-3">
-                      Simulation {run.id} -{" "}
-                      {new Date(run.realDate).toLocaleDateString()}
-                    </div>
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <div className="text-sm font-medium text-purple-600">
-                          {calculateDurationInMonths(
-                            run.startTime,
-                            run.endTime
-                          )}
-                        </div>
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="text-sm font-bold text-purple-800">
+                        Simulation #{run.id} •{" "}
+                        {new Date(run.realDate).toLocaleDateString()}
                       </div>
                       <div
-                        className={`text-lg font-bold ${
+                        className={`text-sm font-bold ${
                           (run.moneyMade || 0) >= 0
                             ? "text-green-600"
                             : "text-red-600"
@@ -262,29 +239,29 @@ export default function HomePage() {
                         ${(run.moneyMade || 0).toLocaleString()}
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-white p-3 rounded-lg shadow-sm">
-                        <div className="text-xs text-purple-600 font-medium mb-1">
-                          Frequency
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-white p-2 rounded-lg shadow-sm">
+                        <div className="text-xs text-purple-600 font-medium">
+                          Avg Frequency Deviation
                         </div>
-                        <div className="font-bold text-purple-900">
+                        <div className="text-sm font-bold text-purple-900">
                           {(run.frequencyAverage || 50).toFixed(3)} Hz
                         </div>
                       </div>
-                      <div className="bg-white p-3 rounded-lg shadow-sm">
-                        <div className="text-xs text-green-600 font-medium mb-1">
-                          Renewable
+                      <div className="bg-white p-2 rounded-lg shadow-sm">
+                        <div className="text-xs text-green-600 font-medium">
+                          Max Renewable %
                         </div>
-                        <div className="font-bold text-green-700">
+                        <div className="text-sm font-bold text-green-700">
                           {(run.maxRenewablePercentage || 0).toFixed(1)}%
                         </div>
                       </div>
-                      <div className="bg-white p-3 rounded-lg shadow-sm">
-                        <div className="text-xs text-purple-600 font-medium mb-1">
-                          Emissions
+                      <div className="bg-white p-2 rounded-lg shadow-sm">
+                        <div className="text-xs text-purple-600 font-medium">
+                          Average Grid Intensity
                         </div>
-                        <div className="font-bold text-purple-900">
-                          {((run.totalEmissions || 0) / 1000).toFixed(1)} t
+                        <div className="text-sm font-bold text-purple-900">
+                          {(run.gridIntensity || 0).toFixed(1)} kg/MWh
                         </div>
                       </div>
                     </div>

@@ -6,10 +6,14 @@ interface RunData {
   startTime: string;
   endTime: string;
   moneyMade: number;
-  frequencyAverage: number;
+  averageFrequencyDeviation: number;
   maxRenewablePercentage: number;
   totalEmissions: number;
-  realDate?: string; // Optional since it has a default value
+  totalGeneration: number;
+  realDate: string;
+  endReason: string;
+  maxCustomers: number;
+  gridIntensity: number;
 }
 
 export async function POST(request: Request) {
@@ -20,9 +24,12 @@ export async function POST(request: Request) {
     if (
       data.userId === undefined || data.userId === null ||
       data.moneyMade === undefined || data.moneyMade === null ||
-      data.frequencyAverage === undefined || data.frequencyAverage === null ||
+      data.averageFrequencyDeviation === undefined || data.averageFrequencyDeviation === null ||
       data.maxRenewablePercentage === undefined || data.maxRenewablePercentage === null ||
-      data.totalEmissions === undefined || data.totalEmissions === null
+      data.totalEmissions === undefined || data.totalEmissions === null ||
+      data.totalGeneration === undefined || data.totalGeneration === null ||
+      data.maxCustomers === undefined || data.maxCustomers === null ||
+      data.gridIntensity === undefined || data.gridIntensity === null
     ) {
       return NextResponse.json(
         { message: "Missing required fields" },
@@ -35,6 +42,7 @@ export async function POST(request: Request) {
     const startTime = data.startTime || now;
     const endTime = data.endTime || now;
     const realDate = data.realDate || now;
+    const endReason = data.endReason || 'manual';
 
     const result = await sql`
       INSERT INTO runs (
@@ -45,26 +53,38 @@ export async function POST(request: Request) {
         frequency_average,
         max_renewable_percentage,
         total_emissions,
-        real_date
+        total_generation,
+        real_date,
+        end_reason,
+        max_customers,
+        grid_intensity
       ) VALUES (
         ${data.userId},
         ${startTime}::timestamp with time zone,
         ${endTime}::timestamp with time zone,
         ${data.moneyMade}::decimal,
-        ${data.frequencyAverage}::decimal,
+        ${data.averageFrequencyDeviation}::decimal,
         ${data.maxRenewablePercentage}::decimal,
         ${data.totalEmissions}::decimal,
-        ${realDate}::timestamp with time zone
+        ${data.totalGeneration}::decimal,
+        ${realDate}::timestamp with time zone,
+        ${endReason},
+        ${data.maxCustomers},
+        ${data.gridIntensity}::decimal
       )
       RETURNING 
         id,
         start_time as "startTime",
         end_time as "endTime",
-        money_made as "moneyMade",
-        frequency_average as "frequencyAverage",
-        max_renewable_percentage as "maxRenewablePercentage",
-        total_emissions as "totalEmissions",
-        real_date as "realDate"
+        money_made::numeric as "moneyMade",
+        frequency_average::numeric as "frequencyAverage",
+        max_renewable_percentage::numeric as "maxRenewablePercentage",
+        total_emissions::numeric as "totalEmissions",
+        total_generation::numeric as "totalGeneration",
+        real_date as "realDate",
+        end_reason as "endReason",
+        max_customers as "maxCustomers",
+        grid_intensity::numeric as "gridIntensity"
     `;
 
     return NextResponse.json(result.rows[0]);
@@ -100,7 +120,11 @@ export async function GET(request: Request) {
         r.frequency_average::numeric as "frequencyAverage",
         r.max_renewable_percentage::numeric as "maxRenewablePercentage",
         r.total_emissions::numeric as "totalEmissions",
+        r.total_generation::numeric as "totalGeneration",
         r.real_date as "realDate",
+        r.end_reason as "endReason",
+        r.max_customers as "maxCustomers",
+        r.grid_intensity::numeric as "gridIntensity",
         u.username
       FROM runs r
       JOIN users u ON r.user_id = u.id
@@ -113,7 +137,10 @@ export async function GET(request: Request) {
       moneyMade: row.moneyMade ? parseFloat(row.moneyMade) : 0,
       frequencyAverage: row.frequencyAverage ? parseFloat(row.frequencyAverage) : 50,
       maxRenewablePercentage: row.maxRenewablePercentage ? parseFloat(row.maxRenewablePercentage) : 0,
-      totalEmissions: row.totalEmissions ? parseFloat(row.totalEmissions) : 0
+      totalEmissions: row.totalEmissions ? parseFloat(row.totalEmissions) : 0,
+      totalGeneration: row.totalGeneration ? parseFloat(row.totalGeneration) : 0,
+      gridIntensity: row.gridIntensity ? parseFloat(row.gridIntensity) : 0,
+      maxCustomers: row.maxCustomers ? parseInt(row.maxCustomers) : 0
     }));
     
     return NextResponse.json(validatedRows);

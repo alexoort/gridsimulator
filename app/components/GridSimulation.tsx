@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback, useState } from "react";
 import { SimulationState } from "../types/grid";
+import { EMISSIONS_FACTORS } from "../types/grid";
 
 interface GridSimulationProps {
   simulationState: SimulationState;
@@ -96,6 +97,10 @@ export default function GridSimulation({
   // Initialize market data
   useEffect(() => {
     if (!isInitialized) {
+      // Clear cumulative values when starting new simulation
+      localStorage.removeItem("cumulativeGeneration");
+      localStorage.removeItem("cumulativeEmissions");
+
       const startHour = 0; // Start at midnight
       fetchMarketData(startHour);
       // Update initial simulation state to start at midnight
@@ -213,6 +218,16 @@ export default function GridSimulation({
 
       totalSupply += output;
     });
+
+    // Store cumulative generation in localStorage
+    const storedGeneration = localStorage.getItem("cumulativeGeneration");
+    const cumulativeGeneration = storedGeneration
+      ? parseFloat(storedGeneration) + totalSupply
+      : totalSupply;
+    localStorage.setItem(
+      "cumulativeGeneration",
+      cumulativeGeneration.toString()
+    );
 
     return totalSupply;
   }, [
@@ -527,27 +542,28 @@ export default function GridSimulation({
           prev.network.frequency
         );
 
-        // Update frequency history
-        // Keep only the last 12 data points
+        // Update frequency history - now keep all data points
         const newFrequencyHistory = [
-          ...(prev.network.frequencyHistory || []).slice(-11),
+          ...(prev.network.frequencyHistory || []),
           { frequency, timestamp: Date.now() },
         ];
 
         // Track frequency deviation for this tick
         const currentDeviation = Math.abs(frequency - 50);
-        const updatedDeviations = [
+
+        // Only use last 12 deviations for price calculation
+        const recentDeviations = [
           ...(prev.market.dailyFrequencyDeviations || []),
           currentDeviation,
-        ];
+        ].slice(-12);
 
-        // Update price every 24 data points
-        const shouldUpdatePrice = updatedDeviations.length >= 24;
+        // Update price every 12 data points
+        const shouldUpdatePrice = recentDeviations.length >= 12;
 
         // Calculate new price if needed
         let newPrice = prev.market.pricePerMWh;
         if (shouldUpdatePrice) {
-          newPrice = calculatePrice(updatedDeviations);
+          newPrice = calculatePrice(recentDeviations);
         }
 
         // Calculate financial update
@@ -555,6 +571,53 @@ export default function GridSimulation({
           totalSupply,
           batteryPower,
           prev.market.pricePerMWh
+        );
+
+        // Calculate total emissions for this tick
+        const currentEmissions = prev.generators.reduce((total, generator) => {
+          return (
+            total +
+            generator.currentOutput * (EMISSIONS_FACTORS[generator.type] || 0)
+          );
+        }, 0);
+
+        // Calculate renewable generation percentage
+        const totalGeneration = prev.generators.reduce(
+          (sum, gen) => sum + gen.currentOutput,
+          0
+        );
+        const renewableGeneration = prev.generators
+          .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
+          .reduce((sum, g) => sum + g.currentOutput, 0);
+        const renewablePercentage =
+          totalGeneration > 0
+            ? (renewableGeneration / totalGeneration) * 100
+            : 0;
+
+        // Track maximum renewable percentage
+        if (renewablePercentage > 0) {
+          const storedMaxPercentage = localStorage.getItem(
+            "maxRenewablePercentage"
+          );
+          const currentMax = storedMaxPercentage
+            ? parseFloat(storedMaxPercentage)
+            : 0;
+          if (renewablePercentage > currentMax) {
+            localStorage.setItem(
+              "maxRenewablePercentage",
+              renewablePercentage.toString()
+            );
+          }
+        }
+
+        // Update cumulative emissions in localStorage
+        const storedEmissions = localStorage.getItem("cumulativeEmissions");
+        const cumulativeEmissions = storedEmissions
+          ? parseFloat(storedEmissions) + currentEmissions
+          : currentEmissions;
+        localStorage.setItem(
+          "cumulativeEmissions",
+          cumulativeEmissions.toString()
         );
 
         // If date changed, update our local state
@@ -575,9 +638,7 @@ export default function GridSimulation({
           market: {
             ...prev.market,
             pricePerMWh: shouldUpdatePrice ? newPrice : prev.market.pricePerMWh,
-            dailyFrequencyDeviations: shouldUpdatePrice
-              ? []
-              : updatedDeviations,
+            dailyFrequencyDeviations: shouldUpdatePrice ? [] : recentDeviations,
           },
           battery: newBatteryState,
           balance: prev.balance + netIncome,

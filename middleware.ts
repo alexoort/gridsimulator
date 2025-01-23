@@ -5,6 +5,11 @@ import { jwtVerify } from 'jose';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export async function middleware(request: NextRequest) {
+  // Allow migration endpoint in development
+  if (process.env.NODE_ENV === 'development' && request.nextUrl.pathname === '/api/migrate-db') {
+    return NextResponse.next();
+  }
+
   // Allow access to welcome page, root path, and auth API
   if (
     request.nextUrl.pathname === '/welcome' ||

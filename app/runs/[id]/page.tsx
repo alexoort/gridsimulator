@@ -13,7 +13,11 @@ interface RunDetails {
   frequencyAverage: number;
   maxRenewablePercentage: number;
   totalEmissions: number;
+  totalGeneration: number;
   realDate: string;
+  endReason: string;
+  maxCustomers: number;
+  gridIntensity: number;
   username?: string;
 }
 
@@ -155,6 +159,10 @@ export default function RunPage() {
                   {new Date(run.endTime).toLocaleDateString()}
                 </div>
               </div>
+              <div className="flex justify-between items-center p-4 bg-purple-50 rounded-lg">
+                <div className="text-purple-900 font-medium">End Reason</div>
+                <div className="text-purple-700">{run.endReason || "N/A"}</div>
+              </div>
             </div>
           </div>
 
@@ -166,45 +174,63 @@ export default function RunPage() {
             <div className="grid grid-cols-2 gap-6">
               <div className="bg-gradient-to-br from-purple-50 to-white p-6 rounded-xl border border-purple-100">
                 <div className="text-sm font-medium text-purple-600 mb-1">
-                  Average Frequency
+                  Average Frequency Deviation
                 </div>
                 <div className="text-3xl font-bold text-purple-900">
-                  {run.frequencyAverage.toFixed(3)} Hz
-                </div>
-                <div className="text-sm text-purple-600 mt-1">
-                  Deviation: {Math.abs(run.frequencyAverage - 50).toFixed(3)} Hz
+                  {run.frequencyAverage
+                    ? run.frequencyAverage.toFixed(3)
+                    : "N/A"}{" "}
+                  Hz
                 </div>
               </div>
               <div className="bg-gradient-to-br from-green-50 to-white p-6 rounded-xl border border-green-100">
                 <div className="text-sm font-medium text-green-600 mb-1">
-                  Renewable Share
+                  Peak Renewable Share
                 </div>
                 <div className="text-3xl font-bold text-green-700">
-                  {run.maxRenewablePercentage.toFixed(1)}%
-                </div>
-                <div className="text-sm text-green-600 mt-1">
-                  Peak renewable generation
+                  {run.maxRenewablePercentage
+                    ? run.maxRenewablePercentage.toFixed(1)
+                    : "0"}
+                  %
                 </div>
               </div>
-              <div className="col-span-2 bg-gradient-to-br from-purple-50 to-white p-6 rounded-xl border border-purple-100">
+              <div className="bg-gradient-to-br from-purple-50 to-white p-6 rounded-xl border border-purple-100">
+                <div className="text-sm font-medium text-purple-600 mb-1">
+                  Total Generation
+                </div>
+                <div className="text-3xl font-bold text-purple-900">
+                  {run.totalGeneration
+                    ? (run.totalGeneration / 1000).toFixed(1)
+                    : "N/A"}{" "}
+                  GWh
+                </div>
+              </div>
+              <div className="bg-gradient-to-br from-purple-50 to-white p-6 rounded-xl border border-purple-100">
+                <div className="text-sm font-medium text-purple-600 mb-1">
+                  Average Grid Intensity
+                </div>
+                <div className="text-3xl font-bold text-purple-900">
+                  {run.gridIntensity ? run.gridIntensity.toFixed(1) : "N/A"}
+                </div>
+                <div className="text-sm text-purple-600 mt-1">kg CO₂/MWh</div>
+              </div>
+              <div className="bg-gradient-to-br from-purple-50 to-white p-6 rounded-xl border border-purple-100">
                 <div className="text-sm font-medium text-purple-600 mb-1">
                   Total Emissions
                 </div>
                 <div className="text-3xl font-bold text-purple-900">
-                  {(run.totalEmissions / 1000).toFixed(1)} tons CO₂
+                  {run.totalEmissions
+                    ? (run.totalEmissions / 1000).toFixed(1)
+                    : "N/A"}{" "}
+                  tons CO₂
                 </div>
-                <div className="text-sm text-purple-600 mt-1">
-                  {(
-                    run.totalEmissions /
-                    1000 /
-                    Number(
-                      calculateDurationInMonths(
-                        run.startTime,
-                        run.endTime
-                      ).split(" ")[0]
-                    )
-                  ).toFixed(1)}{" "}
-                  tons/month average
+              </div>
+              <div className="bg-gradient-to-br from-purple-50 to-white p-6 rounded-xl border border-purple-100">
+                <div className="text-sm font-medium text-purple-600 mb-1">
+                  Peak Customers Served
+                </div>
+                <div className="text-3xl font-bold text-purple-900">
+                  {run.maxCustomers ? run.maxCustomers.toLocaleString() : "N/A"}
                 </div>
               </div>
             </div>
