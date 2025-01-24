@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom Scrollbar Styles */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  
+  .scrollbar-thumb-purple-200::-webkit-scrollbar-thumb {
+    background-color: #e9d5ff;
+    border-radius: 6px;
+  }
+  
+  .scrollbar-thumb-purple-300::-webkit-scrollbar-thumb {
+    background-color: #d8b4fe;
+    border-radius: 6px;
+  }
+  
+  .scrollbar-track-transparent::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

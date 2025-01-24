@@ -46,7 +46,7 @@ export default function HomePage() {
           throw new Error("Failed to fetch runs");
         }
         const data = await response.json();
-        setMyRuns(data.slice(0, 3)); // Only show 3 most recent runs
+        setMyRuns(data); // Only show 3 most recent runs
         setTotalRuns(data.length);
       } catch (error) {
         console.error("Error fetching runs:", error);
@@ -93,7 +93,10 @@ export default function HomePage() {
   }
 
   const handleLogout = () => {
-    // Add actual logout logic here later
+    localStorage.removeItem("user"); // Clear user data
+    localStorage.removeItem("cumulativeGeneration"); // Clear simulation data
+    localStorage.removeItem("cumulativeEmissions");
+    localStorage.removeItem("maxRenewablePercentage");
     router.push("/");
   };
 
@@ -156,7 +159,9 @@ export default function HomePage() {
               <div className="text-3xl font-bold bg-gradient-to-br from-green-500 to-green-700 text-transparent bg-clip-text">
                 $
                 {myRuns.length > 0
-                  ? Math.max(...myRuns.map((r) => r.moneyMade)).toLocaleString()
+                  ? Math.round(
+                      Math.max(...myRuns.map((r) => r.moneyMade))
+                    ).toLocaleString()
                   : "0"}
               </div>
             </div>
@@ -167,7 +172,7 @@ export default function HomePage() {
               <div className="text-3xl font-bold bg-gradient-to-br from-purple-600 to-purple-900 text-transparent bg-clip-text">
                 {myRuns.length > 0
                   ? Math.min(
-                      ...myRuns.map((r) => Math.abs(r.frequencyAverage - 50))
+                      ...myRuns.map((r) => Math.abs(r.frequencyAverage))
                     ).toFixed(3)
                   : "0.000"}{" "}
                 Hz
@@ -195,7 +200,7 @@ export default function HomePage() {
             <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-900 text-transparent bg-clip-text mb-6">
               My Recent Runs
             </h2>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-purple-200 scrollbar-track-transparent hover:scrollbar-thumb-purple-300">
               {myRuns.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="text-purple-400 mb-3">
@@ -236,7 +241,7 @@ export default function HomePage() {
                             : "text-red-600"
                         }`}
                       >
-                        ${(run.moneyMade || 0).toLocaleString()}
+                        ${Math.round(run.moneyMade || 0).toLocaleString()}
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
@@ -317,7 +322,7 @@ export default function HomePage() {
                       </div>
                     </div>
                     <div className="font-medium text-green-600">
-                      ${entry.bestProfit.toLocaleString()}
+                      ${Math.round(entry.bestProfit).toLocaleString()}
                     </div>
                     <div className="font-medium text-purple-900">
                       {entry.bestFrequency.toFixed(3)} Hz

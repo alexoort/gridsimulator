@@ -21,6 +21,8 @@ interface DataPoint {
   time: string;
   load: number;
   generation: number;
+  solar: number;
+  wind: number;
 }
 
 export default function PowerGraph({ simulationState }: PowerGraphProps) {
@@ -45,11 +47,22 @@ export default function PowerGraph({ simulationState }: PowerGraphProps) {
       return;
     }
 
+    // Calculate solar and wind generation separately
+    const solarGen = simulationState.generators
+      .filter((g) => g.type === "solar")
+      .reduce((sum, g) => sum + g.currentOutput, 0);
+
+    const windGen = simulationState.generators
+      .filter((g) => g.type === "wind")
+      .reduce((sum, g) => sum + g.currentOutput, 0);
+
     // Add new data point
     const newPoint = {
       time: `${simulationState.currentHour.toString().padStart(2, "0")}:00`,
       load: simulationState.network.loadMW,
       generation: simulationState.network.supplyMW,
+      solar: solarGen,
+      wind: windGen,
     };
 
     setData((prevData) => {
@@ -61,6 +74,7 @@ export default function PowerGraph({ simulationState }: PowerGraphProps) {
     simulationState.currentHour,
     simulationState.network.loadMW,
     simulationState.network.supplyMW,
+    simulationState.generators,
   ]);
 
   // Save data to localStorage whenever it changes
@@ -69,6 +83,10 @@ export default function PowerGraph({ simulationState }: PowerGraphProps) {
       localStorage.setItem("powerGraphData", JSON.stringify(data));
     }
   }, [data]);
+
+  // Check if user owns solar or wind generators
+  const hasSolar = simulationState.generators.some((g) => g.type === "solar");
+  const hasWind = simulationState.generators.some((g) => g.type === "wind");
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
@@ -100,6 +118,24 @@ export default function PowerGraph({ simulationState }: PowerGraphProps) {
               stroke="#82ca9d"
               strokeWidth={2}
             />
+            {hasSolar && (
+              <Line
+                type="monotone"
+                dataKey="solar"
+                name="Solar (MW)"
+                stroke="#ffc658"
+                strokeWidth={2}
+              />
+            )}
+            {hasWind && (
+              <Line
+                type="monotone"
+                dataKey="wind"
+                name="Wind (MW)"
+                stroke="#ff69b4"
+                strokeWidth={2}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>

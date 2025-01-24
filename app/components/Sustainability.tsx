@@ -2,67 +2,68 @@
 
 import { SimulationState } from "../types/grid";
 import { useEffect, useState } from "react";
+import { EMISSIONS_FACTORS } from "../types/grid";
 
 interface SustainabilityProps {
   simulationState: SimulationState;
 }
 
-// Define emissions factors (kg CO2 per MWh) based on lifecycle analysis
-const EMISSIONS_FACTORS: Record<string, number> = {
-  solar: 41, // Solar PV - roof
-  wind: 11, // Wind offshore (using lowest wind value)
-  nuclear: 12, // Nuclear
-  hydro: 24, // Hydropower
-  coal: 820, // Coal
-};
-
 export default function Sustainability({
   simulationState,
 }: SustainabilityProps) {
-  // Calculate total emissions and generation mix
-  const totalGeneration = simulationState.generators.reduce(
-    (sum, gen) => sum + gen.currentOutput,
-    0
-  );
-
-  const generatorStats = simulationState.generators.reduce((acc, generator) => {
-    const type = generator.type;
-    if (!acc[type]) {
-      acc[type] = {
-        output: 0,
-        emissions: 0,
-        percentage: 0,
-      };
-    }
-    acc[type].output += generator.currentOutput;
-    acc[type].emissions += generator.currentOutput * EMISSIONS_FACTORS[type];
-    acc[type].percentage =
-      (acc[type].output / Math.max(totalGeneration, 1)) * 100;
-    return acc;
-  }, {} as Record<string, { output: number; emissions: number; percentage: number }>);
-
-  // Calculate total emissions
-  const totalEmissions = Object.values(generatorStats).reduce(
-    (sum, stats) => sum + stats.emissions,
-    0
-  );
-
-  // Calculate emissions intensity (kg CO2 per MWh)
-  const emissionsIntensity =
-    totalGeneration > 0 ? totalEmissions / totalGeneration : 0;
-
-  // Calculate current renewable percentage
-  const renewableGeneration = simulationState.generators
-    .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
-    .reduce((sum, g) => sum + g.currentOutput, 0);
-  const renewablePercentage =
-    totalGeneration > 0 ? (renewableGeneration / totalGeneration) * 100 : 0;
-
-  // Get cumulative emissions and max renewable percentage from localStorage
+  const [generationMix, setGenerationMix] = useState<
+    Record<string, { output: number; emissions: number; percentage: number }>
+  >({});
+  const [currentEmissions, setCurrentEmissions] = useState(0);
+  const [currentIntensity, setCurrentIntensity] = useState(0);
+  const [currentRenewable, setCurrentRenewable] = useState(0);
   const [cumulativeEmissions, setCumulativeEmissions] = useState(0);
   const [maxRenewablePercentage, setMaxRenewablePercentage] = useState(0);
 
   useEffect(() => {
+    // Calculate generation mix
+    const totalGen = simulationState.generators.reduce(
+      (sum, gen) => sum + gen.currentOutput,
+      0
+    );
+
+    const genStats = simulationState.generators.reduce((acc, generator) => {
+      const type = generator.type;
+      if (!acc[type]) {
+        acc[type] = {
+          output: 0,
+          emissions: 0,
+          percentage: 0,
+        };
+      }
+      acc[type].output += generator.currentOutput;
+      acc[type].emissions += generator.currentOutput * EMISSIONS_FACTORS[type];
+      acc[type].percentage = (acc[type].output / Math.max(totalGen, 1)) * 100;
+      return acc;
+    }, {} as Record<string, { output: number; emissions: number; percentage: number }>);
+
+    // Calculate total emissions
+    const totalEmis = Object.values(genStats).reduce(
+      (sum, stats) => sum + stats.emissions,
+      0
+    );
+
+    // Calculate emissions intensity
+    const emissionsInt = totalGen > 0 ? totalEmis / totalGen : 0;
+
+    // Calculate renewable percentage
+    const renewableGen = simulationState.generators
+      .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
+      .reduce((sum, g) => sum + g.currentOutput, 0);
+    const renewablePct = totalGen > 0 ? (renewableGen / totalGen) * 100 : 0;
+
+    // Update all state values
+    setGenerationMix(genStats);
+    setCurrentEmissions(totalEmis);
+    setCurrentIntensity(emissionsInt);
+    setCurrentRenewable(renewablePct);
+
+    // Get cumulative values from localStorage
     const storedEmissions = localStorage.getItem("cumulativeEmissions");
     const storedMaxPercentage = localStorage.getItem("maxRenewablePercentage");
     if (storedEmissions) {
@@ -71,7 +72,7 @@ export default function Sustainability({
     if (storedMaxPercentage) {
       setMaxRenewablePercentage(parseFloat(storedMaxPercentage));
     }
-  }, [totalEmissions]);
+  }, [simulationState.iteration, simulationState.generators]);
 
   // Helper function to get color based on intensity
   const getIntensityColor = (intensity: number) => {
@@ -98,13 +99,13 @@ export default function Sustainability({
         <div className="p-4 bg-gray-50 rounded-lg">
           <p className="text-sm text-gray-600">Current Emissions Rate</p>
           <p className="text-xl font-semibold">
-            {totalEmissions.toFixed(1)} kg CO₂/h
+            {currentEmissions.toFixed(1)} kg CO₂/h
           </p>
         </div>
         <div className="p-4 bg-gray-50 rounded-lg">
           <p className="text-sm text-gray-600">Grid Intensity</p>
-          <p className={getIntensityColor(emissionsIntensity)}>
-            {emissionsIntensity.toFixed(1)} kg CO₂/MWh
+          <p className={getIntensityColor(currentIntensity)}>
+            {currentIntensity.toFixed(1)} kg CO₂/MWh
           </p>
         </div>
       </div>
@@ -124,8 +125,8 @@ export default function Sustainability({
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="p-4 bg-gray-50 rounded-lg">
           <p className="text-sm text-gray-600">Current Renewable Mix</p>
-          <p className={getRenewableColor(renewablePercentage)}>
-            {renewablePercentage.toFixed(1)}%
+          <p className={getRenewableColor(currentRenewable)}>
+            {currentRenewable.toFixed(1)}%
           </p>
         </div>
         <div className="p-4 bg-gray-50 rounded-lg">
@@ -142,7 +143,7 @@ export default function Sustainability({
           Generation Mix
         </h3>
         <div className="space-y-3">
-          {Object.entries(generatorStats).map(([type, stats]) => (
+          {Object.entries(generationMix).map(([type, stats]) => (
             <div
               key={type}
               className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"

@@ -74,7 +74,7 @@ export default function NetworkStatus({
         </div>
       </div>
 
-      <div className="mt-8 px-10 py-10">
+      <div className="mt-8 px-5 py-10">
         <FrequencyDial
           frequency={simulationState.network.frequency}
           onGameOver={handleGameOver}

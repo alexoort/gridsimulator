@@ -250,7 +250,10 @@ export default function Dashboard() {
                     }))
                   }
                   className="w-full accent-purple-600"
-                  disabled={!simulationState.network.isRunning}
+                  disabled={
+                    !simulationState.network.isRunning ||
+                    simulationState.iteration === 0
+                  }
                 />
                 <div className="flex justify-between text-xs text-gray-600">
                   <span>1x</span>
@@ -272,7 +275,7 @@ export default function Dashboard() {
                     >
                       Pause
                     </button>
-                  ) : (
+                  ) : simulationState.iteration > 0 ? (
                     <>
                       <button
                         onClick={() =>
@@ -295,6 +298,21 @@ export default function Dashboard() {
                         End
                       </button>
                     </>
+                  ) : (
+                    <button
+                      onClick={() =>
+                        setSimulationState((prev) => ({
+                          ...prev,
+                          network: {
+                            ...prev.network,
+                            isRunning: true,
+                          },
+                        }))
+                      }
+                      className="w-full py-2 px-4 rounded-xl font-medium bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white transition-all duration-200 shadow-lg hover:shadow-green-200 hover:-translate-y-0.5"
+                    >
+                      Start
+                    </button>
                   )}
                 </div>
               </div>
