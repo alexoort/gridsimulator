@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   LineChart,
   Line,
@@ -27,21 +27,23 @@ interface DataPoint {
 
 export default function PowerGraph({ simulationState }: PowerGraphProps) {
   const maxDataPoints = 20;
+  const dataRef = useRef<DataPoint[]>([]);
 
-  // Initialize state from localStorage if available
-  const [data, setData] = useState<DataPoint[]>(() => {
+  // Initialize data from localStorage on mount
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("powerGraphData");
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        dataRef.current = JSON.parse(saved);
+      }
     }
-    return [];
-  });
+  }, []);
 
   // Combined effect for data management
   useEffect(() => {
     if (!simulationState.network.isRunning) {
       if (simulationState.currentHour === 0) {
-        setData([]);
+        dataRef.current = [];
         localStorage.removeItem("powerGraphData");
       }
       return;
@@ -65,24 +67,18 @@ export default function PowerGraph({ simulationState }: PowerGraphProps) {
       wind: windGen,
     };
 
-    setData((prevData) => {
-      const newData = [...prevData, newPoint];
-      return newData.slice(-maxDataPoints);
-    });
+    // Update data in ref
+    dataRef.current = [...dataRef.current, newPoint].slice(-maxDataPoints);
+    localStorage.setItem("powerGraphData", JSON.stringify(dataRef.current));
   }, [
     simulationState.network.isRunning,
     simulationState.currentHour,
     simulationState.network.loadMW,
     simulationState.network.supplyMW,
     simulationState.generators,
+    simulationState.iteration,
+    simulationState.currentDate,
   ]);
-
-  // Save data to localStorage whenever it changes
-  useEffect(() => {
-    if (data.length > 0) {
-      localStorage.setItem("powerGraphData", JSON.stringify(data));
-    }
-  }, [data]);
 
   // Check if user owns solar or wind generators
   const hasSolar = simulationState.generators.some((g) => g.type === "solar");
@@ -96,7 +92,7 @@ export default function PowerGraph({ simulationState }: PowerGraphProps) {
       <div className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
-            data={data}
+            data={dataRef.current}
             margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
           >
             <CartesianGrid strokeDasharray="3 3" />

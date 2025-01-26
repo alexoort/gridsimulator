@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { SimulationState } from "../types/grid";
 import { EMISSIONS_FACTORS } from "../types/grid";
+import Sustainability from "./Sustainability";
 
 interface GridSimulationProps {
   simulationState: SimulationState;
   setSimulationState: React.Dispatch<React.SetStateAction<SimulationState>>;
+  onMetricsUpdate: (metrics: {
+    cumulativeEmissions: number;
+    maxRenewablePercentage: number;
+    totalGeneration: number;
+    renewableGeneration: number;
+  }) => void;
 }
 
 interface MarketData {
@@ -37,12 +44,21 @@ interface MarketResponse {
 export default function GridSimulation({
   simulationState,
   setSimulationState,
+  onMetricsUpdate,
 }: GridSimulationProps) {
   const [marketData, setMarketData] = useState<MarketData[]>([]);
   const [currentDataIndex, setCurrentDataIndex] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   const [currentDate, setCurrentDate] = useState("2024-01-01");
   const [lastFetchDate, setLastFetchDate] = useState("2024-01-01");
+
+  // Add refs for PID control
+  const integralRef = useRef<number>(0);
+  const lastErrorRef = useRef<number>(0);
+
+  // Add refs for sustainability metrics
+  const cumulativeEmissionsRef = useRef<number>(0);
+  const maxRenewablePercentageRef = useRef<number>(0);
 
   // Helper function to get next date
   const getNextDate = useCallback((currentDate: string) => {
@@ -98,8 +114,6 @@ export default function GridSimulation({
   useEffect(() => {
     if (!isInitialized) {
       // Clear cumulative values when starting new simulation
-      localStorage.removeItem("cumulativeGeneration");
-      localStorage.removeItem("cumulativeEmissions");
 
       const startHour = 0; // Start at midnight
       fetchMarketData(startHour);
@@ -235,7 +249,6 @@ export default function GridSimulation({
     marketData,
     currentDataIndex,
     simulationState.network.frequency,
-    simulationState.network.pid,
     setSimulationState,
   ]);
 
@@ -581,7 +594,10 @@ export default function GridSimulation({
           );
         }, 0);
 
-        // Calculate renewable generation percentage
+        // Update cumulative emissions ref
+        cumulativeEmissionsRef.current += currentEmissions;
+
+        // Calculate total and renewable generation for current render
         const totalGeneration = prev.generators.reduce(
           (sum, gen) => sum + gen.currentOutput,
           0
@@ -589,36 +605,17 @@ export default function GridSimulation({
         const renewableGeneration = prev.generators
           .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
           .reduce((sum, g) => sum + g.currentOutput, 0);
+
+        // Calculate renewable generation percentage
         const renewablePercentage =
           totalGeneration > 0
             ? (renewableGeneration / totalGeneration) * 100
             : 0;
 
         // Track maximum renewable percentage
-        if (renewablePercentage > 0) {
-          const storedMaxPercentage = localStorage.getItem(
-            "maxRenewablePercentage"
-          );
-          const currentMax = storedMaxPercentage
-            ? parseFloat(storedMaxPercentage)
-            : 0;
-          if (renewablePercentage > currentMax) {
-            localStorage.setItem(
-              "maxRenewablePercentage",
-              renewablePercentage.toString()
-            );
-          }
+        if (renewablePercentage > maxRenewablePercentageRef.current) {
+          maxRenewablePercentageRef.current = renewablePercentage;
         }
-
-        // Update cumulative emissions in localStorage
-        const storedEmissions = localStorage.getItem("cumulativeEmissions");
-        const cumulativeEmissions = storedEmissions
-          ? parseFloat(storedEmissions) + currentEmissions
-          : currentEmissions;
-        localStorage.setItem(
-          "cumulativeEmissions",
-          cumulativeEmissions.toString()
-        );
 
         // If date changed, update our local state
         if (newDate !== prev.currentDate) {
@@ -684,6 +681,78 @@ export default function GridSimulation({
     lastFetchDate,
   ]);
 
-  // Remove the separate state update effect
-  return null; // This component only handles simulation logic
+  // Reset PID values when simulation stops or parameters change
+  useEffect(() => {
+    if (
+      !simulationState.network.isRunning ||
+      simulationState.currentHour === 0
+    ) {
+      integralRef.current = 0;
+      lastErrorRef.current = 0;
+    }
+  }, [
+    simulationState.network.isRunning,
+    simulationState.currentHour,
+    simulationState.network.pid.kp,
+    simulationState.network.pid.ki,
+    simulationState.network.pid.kd,
+  ]);
+
+  // Reset refs when simulation starts
+  useEffect(() => {
+    if (simulationState.iteration === 0) {
+      cumulativeEmissionsRef.current = 0;
+      maxRenewablePercentageRef.current = 0;
+    }
+  }, [simulationState.iteration]);
+
+  // Calculate total and renewable generation
+  const totalGeneration = simulationState.generators.reduce(
+    (sum, gen) => sum + gen.currentOutput,
+    0
+  );
+  const renewableGeneration = simulationState.generators
+    .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
+    .reduce((sum, g) => sum + g.currentOutput, 0);
+
+  // Update sustainability metrics in main simulation loop
+  useEffect(() => {
+    if (!simulationState.network.isRunning) return;
+
+    // Calculate renewable percentage
+    const renewablePercentage =
+      totalGeneration > 0 ? (renewableGeneration / totalGeneration) * 100 : 0;
+
+    // Update max renewable percentage if needed
+    if (renewablePercentage > maxRenewablePercentageRef.current) {
+      maxRenewablePercentageRef.current = renewablePercentage;
+    }
+
+    // Call onMetricsUpdate with current values
+    onMetricsUpdate({
+      cumulativeEmissions: cumulativeEmissionsRef.current,
+      maxRenewablePercentage: maxRenewablePercentageRef.current,
+      totalGeneration,
+      renewableGeneration,
+    });
+  }, [
+    simulationState.iteration,
+    simulationState.network.isRunning,
+    simulationState.generators,
+    totalGeneration,
+    renewableGeneration,
+    onMetricsUpdate,
+  ]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Sustainability
+        simulationState={simulationState}
+        cumulativeEmissions={cumulativeEmissionsRef.current}
+        maxRenewablePercentage={maxRenewablePercentageRef.current}
+        totalGeneration={totalGeneration}
+        renewableGeneration={renewableGeneration}
+      />
+    </div>
+  );
 }

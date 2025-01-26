@@ -6,27 +6,31 @@ import { EMISSIONS_FACTORS } from "../types/grid";
 
 interface SustainabilityProps {
   simulationState: SimulationState;
+  cumulativeEmissions: number;
+  maxRenewablePercentage: number;
+  totalGeneration: number;
+  renewableGeneration: number;
 }
 
 export default function Sustainability({
   simulationState,
+  cumulativeEmissions,
+  maxRenewablePercentage,
+  totalGeneration,
+  renewableGeneration,
 }: SustainabilityProps) {
+  // State for display values only
   const [generationMix, setGenerationMix] = useState<
     Record<string, { output: number; emissions: number; percentage: number }>
   >({});
   const [currentEmissions, setCurrentEmissions] = useState(0);
   const [currentIntensity, setCurrentIntensity] = useState(0);
   const [currentRenewable, setCurrentRenewable] = useState(0);
-  const [cumulativeEmissions, setCumulativeEmissions] = useState(0);
-  const [maxRenewablePercentage, setMaxRenewablePercentage] = useState(0);
 
   useEffect(() => {
-    // Calculate generation mix
-    const totalGen = simulationState.generators.reduce(
-      (sum, gen) => sum + gen.currentOutput,
-      0
-    );
+    if (!simulationState.network.isRunning) return;
 
+    // Calculate generation mix
     const genStats = simulationState.generators.reduce((acc, generator) => {
       const type = generator.type;
       if (!acc[type]) {
@@ -38,7 +42,8 @@ export default function Sustainability({
       }
       acc[type].output += generator.currentOutput;
       acc[type].emissions += generator.currentOutput * EMISSIONS_FACTORS[type];
-      acc[type].percentage = (acc[type].output / Math.max(totalGen, 1)) * 100;
+      acc[type].percentage =
+        (acc[type].output / Math.max(totalGeneration, 1)) * 100;
       return acc;
     }, {} as Record<string, { output: number; emissions: number; percentage: number }>);
 
@@ -49,30 +54,24 @@ export default function Sustainability({
     );
 
     // Calculate emissions intensity
-    const emissionsInt = totalGen > 0 ? totalEmis / totalGen : 0;
+    const emissionsInt = totalGeneration > 0 ? totalEmis / totalGeneration : 0;
 
-    // Calculate renewable percentage
-    const renewableGen = simulationState.generators
-      .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
-      .reduce((sum, g) => sum + g.currentOutput, 0);
-    const renewablePct = totalGen > 0 ? (renewableGen / totalGen) * 100 : 0;
+    // Calculate renewable percentage using props
+    const renewablePct =
+      totalGeneration > 0 ? (renewableGeneration / totalGeneration) * 100 : 0;
 
-    // Update all state values
+    // Update display values
     setGenerationMix(genStats);
     setCurrentEmissions(totalEmis);
     setCurrentIntensity(emissionsInt);
     setCurrentRenewable(renewablePct);
-
-    // Get cumulative values from localStorage
-    const storedEmissions = localStorage.getItem("cumulativeEmissions");
-    const storedMaxPercentage = localStorage.getItem("maxRenewablePercentage");
-    if (storedEmissions) {
-      setCumulativeEmissions(parseFloat(storedEmissions));
-    }
-    if (storedMaxPercentage) {
-      setMaxRenewablePercentage(parseFloat(storedMaxPercentage));
-    }
-  }, [simulationState.iteration, simulationState.generators]);
+  }, [
+    simulationState.iteration,
+    simulationState.generators,
+    simulationState.network.isRunning,
+    totalGeneration,
+    renewableGeneration,
+  ]);
 
   // Helper function to get color based on intensity
   const getIntensityColor = (intensity: number) => {

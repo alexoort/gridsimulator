@@ -217,6 +217,12 @@ export default function Dashboard() {
     }
   };
 
+  // Keep GridSimulation mounted but hidden
+  const [cumulativeEmissions, setCumulativeEmissions] = useState(0);
+  const [maxRenewablePercentage, setMaxRenewablePercentage] = useState(0);
+  const [totalGeneration, setTotalGeneration] = useState(0);
+  const [renewableGeneration, setRenewableGeneration] = useState(0);
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 p-4 md:p-6">
       <div className="container mx-auto max-w-7xl">
@@ -344,6 +350,12 @@ export default function Dashboard() {
           <GridSimulation
             simulationState={simulationState}
             setSimulationState={setSimulationState}
+            onMetricsUpdate={(metrics) => {
+              setCumulativeEmissions(metrics.cumulativeEmissions);
+              setMaxRenewablePercentage(metrics.maxRenewablePercentage);
+              setTotalGeneration(metrics.totalGeneration);
+              setRenewableGeneration(metrics.renewableGeneration);
+            }}
           />
         </div>
 
@@ -380,7 +392,13 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Sustainability simulationState={simulationState} />
+            <Sustainability
+              simulationState={simulationState}
+              cumulativeEmissions={cumulativeEmissions}
+              maxRenewablePercentage={maxRenewablePercentage}
+              totalGeneration={totalGeneration}
+              renewableGeneration={renewableGeneration}
+            />
             <div className="space-y-6">
               <PowerGraph simulationState={simulationState} />
             </div>
