@@ -31,10 +31,19 @@ export interface NetworkStatus {
     kp: number;
     ki: number;
     kd: number;
-    integral?: number;
+    integral: number;
     lastError?: number;
     useBattery: boolean;
   };
+}
+
+export interface SustainabilityStatus {
+  currentEmissions: number;
+  cumulativeEmissions: number;
+  maxRenewablePercentage: number;
+  totalGeneration: number;
+  renewableGeneration: number;
+  generationMix: { [key: string]: number };
 }
 
 export interface MarketData {

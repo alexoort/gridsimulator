@@ -12,7 +12,7 @@ import PowerGraph from "../components/PowerGraph";
 import PIDController from "../components/PIDController";
 import Sustainability from "../components/Sustainability";
 import { useRouter } from "next/navigation";
-import { INITIAL_BALANCE } from "../types/grid";
+import { INITIAL_BALANCE, EMISSIONS_FACTORS } from "../types/grid";
 
 const getInitialState = (): SimulationState => ({
   network: {
@@ -72,6 +72,11 @@ export default function Dashboard() {
     getInitialState()
   );
 
+  // State for sustainability metrics
+  const [cumulativeEmissions, setCumulativeEmissions] = useState(0);
+  const [maxRenewablePercentage, setMaxRenewablePercentage] = useState(0);
+  const [cumulativeTotalGeneration, setCumulativeTotalGeneration] = useState(0);
+
   // Format date for display - using UTC to ensure consistency
   const formatDateTime = (date: string, hour: number) => {
     const [year, month, day] = date.split("-").map(Number);
@@ -114,7 +119,6 @@ export default function Dashboard() {
     simulationState.currentHour
   );
 
-  // Export the handleEndSimulation function
   const handleEndSimulation = async (reason?: string) => {
     // Stop the simulation first
     setSimulationState((prev) => ({
@@ -145,20 +149,33 @@ export default function Dashboard() {
 
     const maxCustomers = simulationState.network.customers || 0;
 
-    // Calculate grid intensity using the current state values
+    // Calculate grid intensity (kg CO2/MWh)
     const gridIntensity =
-      totalGeneration > 0 ? cumulativeEmissions / totalGeneration : 0;
+      cumulativeTotalGeneration > 0
+        ? cumulativeEmissions / cumulativeTotalGeneration
+        : 0;
+
+    console.log("Grid intensity calculation:", {
+      cumulativeEmissions,
+      cumulativeTotalGeneration,
+      gridIntensity,
+      generators: simulationState.generators.map((g) => ({
+        type: g.type,
+        output: g.currentOutput,
+        emissionsFactor: EMISSIONS_FACTORS[g.type] || 0,
+      })),
+    });
 
     // Prepare stats object with all required fields
     const stats = {
       userId: Number(user.id),
-      startTime: new Date("2024-01-01T00:00:00.000Z").toISOString(),
-      endTime: new Date().toISOString(),
+      startTime: "2024-01-01T00:00:00.000Z",
+      endTime: simulationState.currentDate,
       moneyMade: simulationState.balance - INITIAL_BALANCE,
-      frequencyAverage: averageFrequencyDeviation,
+      averageFrequencyDeviation,
       maxRenewablePercentage,
       totalEmissions: cumulativeEmissions,
-      totalGeneration,
+      totalGeneration: cumulativeTotalGeneration,
       realDate: new Date().toISOString(),
       endReason: reason || "manual",
       maxCustomers,
@@ -168,7 +185,6 @@ export default function Dashboard() {
     console.log("Saving run with stats:", stats);
 
     try {
-      // Save run to database
       const response = await fetch("/api/runs", {
         method: "POST",
         headers: {
@@ -177,24 +193,19 @@ export default function Dashboard() {
         body: JSON.stringify(stats),
       });
 
+      const responseData = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Server error details:", errorData);
+        console.error("Server error details:", responseData);
         throw new Error(`Failed to save run: ${response.status}`);
       }
 
-      const { id } = await response.json();
-      router.push(`/runs/${id}`);
+      console.log("Successfully saved run with ID:", responseData.id);
+      router.push(`/runs/${responseData.id}`);
     } catch (error) {
       console.error("Error saving run:", error);
     }
   };
-
-  // Keep GridSimulation mounted but hidden
-  const [cumulativeEmissions, setCumulativeEmissions] = useState(0);
-  const [maxRenewablePercentage, setMaxRenewablePercentage] = useState(0);
-  const [totalGeneration, setTotalGeneration] = useState(0);
-  const [renewableGeneration, setRenewableGeneration] = useState(0);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 p-4 md:p-6">
@@ -324,12 +335,24 @@ export default function Dashboard() {
             simulationState={simulationState}
             setSimulationState={setSimulationState}
             onMetricsUpdate={(metrics) => {
-              // Batch state updates to prevent re-render loops
               if (simulationState.network.isRunning) {
+                console.log("Dashboard receiving metrics update:", {
+                  receivedCumulativeEmissions: metrics.cumulativeEmissions,
+                  receivedCumulativeTotalGeneration:
+                    metrics.cumulativeTotalGeneration,
+                  currentStateValues: {
+                    cumulativeEmissions,
+                    cumulativeTotalGeneration,
+                  },
+                  willSetTo: {
+                    newCumulativeEmissions: metrics.cumulativeEmissions,
+                    newCumulativeTotalGeneration:
+                      metrics.cumulativeTotalGeneration,
+                  },
+                });
                 setCumulativeEmissions(metrics.cumulativeEmissions);
+                setCumulativeTotalGeneration(metrics.cumulativeTotalGeneration);
                 setMaxRenewablePercentage(metrics.maxRenewablePercentage);
-                setTotalGeneration(metrics.totalGeneration);
-                setRenewableGeneration(metrics.renewableGeneration);
               }
             }}
           />
@@ -372,8 +395,54 @@ export default function Dashboard() {
               simulationState={simulationState}
               cumulativeEmissions={cumulativeEmissions}
               maxRenewablePercentage={maxRenewablePercentage}
-              totalGeneration={totalGeneration}
-              renewableGeneration={renewableGeneration}
+              currentTotalGeneration={simulationState.generators.reduce(
+                (sum, gen) => sum + (gen.currentOutput || 0),
+                0
+              )}
+              currentRenewableGeneration={simulationState.generators
+                .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
+                .reduce((sum, g) => sum + (g.currentOutput || 0), 0)}
+              currentEmissionsRate={simulationState.generators.reduce(
+                (total, generator) => {
+                  const emissionsFactor =
+                    EMISSIONS_FACTORS[generator.type] || 0;
+                  return (
+                    total + (generator.currentOutput || 0) * emissionsFactor
+                  );
+                },
+                0
+              )}
+              gridIntensity={
+                simulationState.generators.reduce(
+                  (sum, gen) => sum + (gen.currentOutput || 0),
+                  0
+                ) > 0
+                  ? simulationState.generators.reduce((total, generator) => {
+                      const emissionsFactor =
+                        EMISSIONS_FACTORS[generator.type] || 0;
+                      return (
+                        total + (generator.currentOutput || 0) * emissionsFactor
+                      );
+                    }, 0) /
+                    simulationState.generators.reduce(
+                      (sum, gen) => sum + (gen.currentOutput || 0),
+                      0
+                    )
+                  : 0
+              }
+              generationMix={simulationState.generators.reduce(
+                (acc, generator) => {
+                  if (!acc[generator.type]) {
+                    acc[generator.type] = { output: 0, emissions: 0 };
+                  }
+                  acc[generator.type].output += generator.currentOutput || 0;
+                  acc[generator.type].emissions +=
+                    (generator.currentOutput || 0) *
+                    (EMISSIONS_FACTORS[generator.type] || 0);
+                  return acc;
+                },
+                {} as Record<string, { output: number; emissions: number }>
+              )}
             />
             <div className="space-y-6">
               <PowerGraph simulationState={simulationState} />
