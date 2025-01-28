@@ -133,14 +133,6 @@ export default function Dashboard() {
     }
     const user = JSON.parse(userStr);
 
-    // Get cumulative values from localStorage
-    const cumulativeGeneration = parseFloat(
-      localStorage.getItem("cumulativeGeneration") || "0"
-    );
-    const cumulativeEmissions = parseFloat(
-      localStorage.getItem("cumulativeEmissions") || "0"
-    );
-
     // Calculate metrics
     const frequencyDeviations =
       simulationState.network.frequencyHistory?.map((entry) =>
@@ -149,37 +141,31 @@ export default function Dashboard() {
 
     const averageFrequencyDeviation =
       frequencyDeviations.reduce((sum, deviation) => sum + deviation, 0) /
-      frequencyDeviations.length;
+      (frequencyDeviations.length || 1);
 
     const maxCustomers = simulationState.network.customers || 0;
 
-    const maxRenewablePercentage = parseFloat(
-      localStorage.getItem("maxRenewablePercentage") || "0"
-    );
-
-    // delete cumulativeGeneration and cumulativeEmissions from localStorage
-    localStorage.removeItem("cumulativeGeneration");
-    localStorage.removeItem("cumulativeEmissions");
-    localStorage.removeItem("maxRenewablePercentage");
-
+    // Calculate grid intensity using the current state values
     const gridIntensity =
-      cumulativeGeneration > 0 ? cumulativeEmissions / cumulativeGeneration : 0;
+      totalGeneration > 0 ? cumulativeEmissions / totalGeneration : 0;
 
-    // Prepare stats object
+    // Prepare stats object with all required fields
     const stats = {
       userId: Number(user.id),
-      startTime: "2024-01-01T00:00:00.000Z",
-      endTime: simulationState.currentDate,
+      startTime: new Date("2024-01-01T00:00:00.000Z").toISOString(),
+      endTime: new Date().toISOString(),
       moneyMade: simulationState.balance - INITIAL_BALANCE,
-      averageFrequencyDeviation,
+      frequencyAverage: averageFrequencyDeviation,
       maxRenewablePercentage,
-      totalEmissions: cumulativeEmissions, // Use cumulative emissions instead
-      totalGeneration: cumulativeGeneration, // Add cumulative generation
+      totalEmissions: cumulativeEmissions,
+      totalGeneration,
       realDate: new Date().toISOString(),
       endReason: reason || "manual",
       maxCustomers,
       gridIntensity,
     };
+
+    console.log("Saving run with stats:", stats);
 
     try {
       // Save run to database
@@ -192,25 +178,12 @@ export default function Dashboard() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to save run");
+        const errorData = await response.json();
+        console.error("Server error details:", errorData);
+        throw new Error(`Failed to save run: ${response.status}`);
       }
 
       const { id } = await response.json();
-
-      // Reset simulation state
-      setSimulationState((prev) => ({
-        ...prev,
-        network: {
-          ...prev.network,
-          isRunning: false,
-        },
-      }));
-
-      // Clear cumulative values from localStorage
-      localStorage.removeItem("cumulativeGeneration");
-      localStorage.removeItem("cumulativeEmissions");
-
-      // Redirect to run statistics page
       router.push(`/runs/${id}`);
     } catch (error) {
       console.error("Error saving run:", error);
@@ -345,16 +318,19 @@ export default function Dashboard() {
 
         <Tabs activeTab={activeTab} setActiveTab={setActiveTab} />
 
-        {/* Keep GridSimulation mounted but hidden */}
+        {/* Hidden div for GridSimulation to maintain state */}
         <div className="hidden">
           <GridSimulation
             simulationState={simulationState}
             setSimulationState={setSimulationState}
             onMetricsUpdate={(metrics) => {
-              setCumulativeEmissions(metrics.cumulativeEmissions);
-              setMaxRenewablePercentage(metrics.maxRenewablePercentage);
-              setTotalGeneration(metrics.totalGeneration);
-              setRenewableGeneration(metrics.renewableGeneration);
+              // Batch state updates to prevent re-render loops
+              if (simulationState.network.isRunning) {
+                setCumulativeEmissions(metrics.cumulativeEmissions);
+                setMaxRenewablePercentage(metrics.maxRenewablePercentage);
+                setTotalGeneration(metrics.totalGeneration);
+                setRenewableGeneration(metrics.renewableGeneration);
+              }
             }}
           />
         </div>

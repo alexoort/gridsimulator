@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useState, useRef } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { SimulationState } from "../types/grid";
 import { EMISSIONS_FACTORS } from "../types/grid";
 import Sustainability from "./Sustainability";
@@ -52,13 +52,9 @@ export default function GridSimulation({
   const [currentDate, setCurrentDate] = useState("2024-01-01");
   const [lastFetchDate, setLastFetchDate] = useState("2024-01-01");
 
-  // Add refs for PID control
-  const integralRef = useRef<number>(0);
-  const lastErrorRef = useRef<number>(0);
-
-  // Add refs for sustainability metrics
-  const cumulativeEmissionsRef = useRef<number>(0);
-  const maxRenewablePercentageRef = useRef<number>(0);
+  // Replace refs with state variables
+  const [cumulativeEmissions, setCumulativeEmissions] = useState(0);
+  const [maxRenewablePercentage, setMaxRenewablePercentage] = useState(0);
 
   // Helper function to get next date
   const getNextDate = useCallback((currentDate: string) => {
@@ -594,8 +590,8 @@ export default function GridSimulation({
           );
         }, 0);
 
-        // Update cumulative emissions ref
-        cumulativeEmissionsRef.current += currentEmissions;
+        // Update cumulative emissions
+        setCumulativeEmissions((prev) => prev + currentEmissions);
 
         // Calculate total and renewable generation for current render
         const totalGeneration = prev.generators.reduce(
@@ -612,9 +608,9 @@ export default function GridSimulation({
             ? (renewableGeneration / totalGeneration) * 100
             : 0;
 
-        // Track maximum renewable percentage
-        if (renewablePercentage > maxRenewablePercentageRef.current) {
-          maxRenewablePercentageRef.current = renewablePercentage;
+        // Update max renewable percentage if needed
+        if (renewablePercentage > maxRenewablePercentage) {
+          setMaxRenewablePercentage(renewablePercentage);
         }
 
         // If date changed, update our local state
@@ -681,77 +677,73 @@ export default function GridSimulation({
     lastFetchDate,
   ]);
 
-  // Reset PID values when simulation stops or parameters change
-  useEffect(() => {
-    if (
-      !simulationState.network.isRunning ||
-      simulationState.currentHour === 0
-    ) {
-      integralRef.current = 0;
-      lastErrorRef.current = 0;
-    }
-  }, [
-    simulationState.network.isRunning,
-    simulationState.currentHour,
-    simulationState.network.pid.kp,
-    simulationState.network.pid.ki,
-    simulationState.network.pid.kd,
-  ]);
-
-  // Reset refs when simulation starts
+  // Reset metrics when simulation starts
   useEffect(() => {
     if (simulationState.iteration === 0) {
-      cumulativeEmissionsRef.current = 0;
-      maxRenewablePercentageRef.current = 0;
+      setCumulativeEmissions(0);
+      setMaxRenewablePercentage(0);
     }
   }, [simulationState.iteration]);
-
-  // Calculate total and renewable generation
-  const totalGeneration = simulationState.generators.reduce(
-    (sum, gen) => sum + gen.currentOutput,
-    0
-  );
-  const renewableGeneration = simulationState.generators
-    .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
-    .reduce((sum, g) => sum + g.currentOutput, 0);
 
   // Update sustainability metrics in main simulation loop
   useEffect(() => {
     if (!simulationState.network.isRunning) return;
 
+    // Calculate total and renewable generation
+    const totalGeneration = simulationState.generators.reduce(
+      (sum, gen) => sum + gen.currentOutput,
+      0
+    );
+    const renewableGeneration = simulationState.generators
+      .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
+      .reduce((sum, g) => sum + g.currentOutput, 0);
+
     // Calculate renewable percentage
     const renewablePercentage =
       totalGeneration > 0 ? (renewableGeneration / totalGeneration) * 100 : 0;
 
-    // Update max renewable percentage if needed
-    if (renewablePercentage > maxRenewablePercentageRef.current) {
-      maxRenewablePercentageRef.current = renewablePercentage;
+    // Calculate emissions for this tick
+    const currentEmissions = simulationState.generators.reduce(
+      (total, generator) => {
+        return (
+          total +
+          generator.currentOutput * (EMISSIONS_FACTORS[generator.type] || 0)
+        );
+      },
+      0
+    );
+
+    // Update local state
+    setCumulativeEmissions((prev) => prev + currentEmissions);
+    if (renewablePercentage > maxRenewablePercentage) {
+      setMaxRenewablePercentage(renewablePercentage);
     }
 
     // Call onMetricsUpdate with current values
     onMetricsUpdate({
-      cumulativeEmissions: cumulativeEmissionsRef.current,
-      maxRenewablePercentage: maxRenewablePercentageRef.current,
+      cumulativeEmissions: cumulativeEmissions + currentEmissions,
+      maxRenewablePercentage: Math.max(
+        maxRenewablePercentage,
+        renewablePercentage
+      ),
       totalGeneration,
       renewableGeneration,
     });
-  }, [
-    simulationState.iteration,
-    simulationState.network.isRunning,
-    simulationState.generators,
-    totalGeneration,
-    renewableGeneration,
-    onMetricsUpdate,
-  ]);
+  }, [simulationState.iteration, simulationState.network.isRunning]);
 
   return (
     <div className="flex flex-col gap-4">
       <Sustainability
         simulationState={simulationState}
-        cumulativeEmissions={cumulativeEmissionsRef.current}
-        maxRenewablePercentage={maxRenewablePercentageRef.current}
-        totalGeneration={totalGeneration}
-        renewableGeneration={renewableGeneration}
+        cumulativeEmissions={cumulativeEmissions}
+        maxRenewablePercentage={maxRenewablePercentage}
+        totalGeneration={simulationState.generators.reduce(
+          (sum, gen) => sum + gen.currentOutput,
+          0
+        )}
+        renewableGeneration={simulationState.generators
+          .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
+          .reduce((sum, g) => sum + g.currentOutput, 0)}
       />
     </div>
   );

@@ -52,11 +52,6 @@ export default function PIDController({
   const derivative = pid.kd * (error - (pid.lastError || 0));
   const currentCorrection = -(proportional + integral + derivative); // Negative correction when frequency is too high
 
-  // Calculate battery contribution
-  const batteryPower = simulationState.battery.currentOutput;
-  const maxBatteryRate = simulationState.battery.maxRate;
-  const batteryPercentage = (Math.abs(batteryPower) / maxBatteryRate) * 100;
-
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       <h2 className="text-xl font-semibold mb-4 text-purple-800">
@@ -180,16 +175,6 @@ export default function PIDController({
         {/* Status Information */}
         <div className="mt-6 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Frequency Error:</span>
-            <span
-              className={`font-medium ${
-                Math.abs(error) > 0.5 ? "text-red-600" : "text-green-600"
-              }`}
-            >
-              {error.toFixed(3)} Hz
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
             <span className="text-gray-600">PID Terms:</span>
             <span className="font-medium space-x-2">
               <span>P: {(-proportional).toFixed(1)}</span>
@@ -200,21 +185,6 @@ export default function PIDController({
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">Total Correction:</span>
             <span className="font-medium">{currentCorrection.toFixed(1)}%</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Battery Power:</span>
-            <span
-              className={`font-medium ${
-                batteryPower > 0
-                  ? "text-green-600"
-                  : batteryPower < 0
-                  ? "text-red-600"
-                  : "text-gray-600"
-              }`}
-            >
-              {batteryPower.toFixed(1)} MW ({batteryPercentage.toFixed(0)}% of
-              max)
-            </span>
           </div>
         </div>
       </div>
