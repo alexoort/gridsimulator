@@ -41,6 +41,7 @@ export interface SustainabilityStatus {
   currentEmissions: number;
   cumulativeEmissions: number;
   maxRenewablePercentage: number;
+  cumulativeTotalGeneration: number;
   totalGeneration: number;
   renewableGeneration: number;
   generationMix: { [key: string]: number };
@@ -60,6 +61,7 @@ export interface SimulationState {
   battery: Battery;
   network: NetworkStatus;
   market: MarketData;
+  sustainability: SustainabilityStatus;
   balance: number;
   iteration: number;
   currentDate: string;

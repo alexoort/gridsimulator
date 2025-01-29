@@ -14,6 +14,9 @@ interface GridSimulationProps {
     cumulativeTotalGeneration: number;
     currentTotalGeneration: number;
     currentRenewableGeneration: number;
+    currentEmissionsRate: number;
+    gridIntensity: number;
+    currentRenewableMix: number;
   }) => void;
 }
 
@@ -51,11 +54,6 @@ export default function GridSimulation({
   const [currentDataIndex, setCurrentDataIndex] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   const [lastFetchDate, setLastFetchDate] = useState("2024-01-01");
-
-  // Replace refs with state variables
-  const [cumulativeEmissions, setCumulativeEmissions] = useState(0);
-  const [maxRenewablePercentage, setMaxRenewablePercentage] = useState(0);
-  const [cumulativeTotalGeneration, setCumulativeTotalGeneration] = useState(0);
 
   // Helper function to get next date
   const getNextDate = useCallback((currentDate: string) => {
@@ -577,39 +575,47 @@ export default function GridSimulation({
           .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
           .reduce((sum, g) => sum + (g.currentOutput || 0), 0);
 
-        // Calculate renewable percentage
-        const currentRenewablePercentage =
-          currentTotalGeneration > 0
-            ? (currentRenewableGeneration / currentTotalGeneration) * 100
-            : 0;
-
         // Calculate emissions for this tick
         const currentEmissions = prev.generators.reduce((total, generator) => {
           const emissionsFactor = EMISSIONS_FACTORS[generator.type] || 0;
           return total + (generator.currentOutput || 0) * emissionsFactor;
         }, 0);
 
-        // Update sustainability metrics with new values
-        const newCumulativeEmissions = cumulativeEmissions + currentEmissions;
-        const newCumulativeTotalGeneration =
-          cumulativeTotalGeneration + currentTotalGeneration;
-        const newMaxRenewablePercentage = Math.max(
-          maxRenewablePercentage,
-          currentRenewablePercentage
-        );
+        // Calculate generation mix
+        const generationMix = prev.generators.reduce((mix, generator) => {
+          mix[generator.type] = generator.currentOutput || 0;
+          return mix;
+        }, {} as Record<string, number>);
 
-        // Update state variables outside of the simulation state update
-        setCumulativeEmissions(newCumulativeEmissions);
-        setCumulativeTotalGeneration(newCumulativeTotalGeneration);
-        setMaxRenewablePercentage(newMaxRenewablePercentage);
+        // Update sustainability metrics
+        const newSustainability = {
+          currentEmissions,
+          cumulativeEmissions:
+            prev.sustainability.cumulativeEmissions + currentEmissions,
+          maxRenewablePercentage: Math.max(
+            prev.sustainability.maxRenewablePercentage,
+            (currentRenewableGeneration / currentTotalGeneration) * 100 || 0
+          ),
+          cumulativeTotalGeneration:
+            prev.sustainability.cumulativeTotalGeneration +
+            currentTotalGeneration,
+          totalGeneration: currentTotalGeneration,
+          renewableGeneration: currentRenewableGeneration,
+          generationMix,
+        };
 
         // Call onMetricsUpdate with the new values
         onMetricsUpdate({
-          cumulativeEmissions: newCumulativeEmissions,
-          maxRenewablePercentage: newMaxRenewablePercentage,
-          cumulativeTotalGeneration: newCumulativeTotalGeneration,
+          cumulativeEmissions: newSustainability.cumulativeEmissions,
+          maxRenewablePercentage: newSustainability.maxRenewablePercentage,
+          cumulativeTotalGeneration:
+            newSustainability.cumulativeTotalGeneration,
           currentTotalGeneration,
           currentRenewableGeneration,
+          currentEmissionsRate: currentEmissions,
+          gridIntensity: currentEmissions,
+          currentRenewableMix:
+            (currentRenewableGeneration / currentTotalGeneration) * 100 || 0,
         });
 
         return {
@@ -630,8 +636,9 @@ export default function GridSimulation({
             lastPriceUpdate: shouldUpdatePrice
               ? Date.now()
               : prev.market.lastPriceUpdate,
-            dailyFrequencyDeviations: shouldUpdatePrice ? [] : recentDeviations,
+            dailyFrequencyDeviations: recentDeviations,
           },
+          sustainability: newSustainability,
           balance: prev.balance + netIncome,
           iteration: prev.iteration + 1,
         };
@@ -678,61 +685,9 @@ export default function GridSimulation({
     lastFetchDate,
   ]);
 
-  // Reset metrics when simulation starts
-  useEffect(() => {
-    if (simulationState.iteration === 0) {
-      setCumulativeEmissions(0);
-      setMaxRenewablePercentage(0);
-      setCumulativeTotalGeneration(0);
-    }
-  }, [simulationState.iteration]);
-
   return (
     <div className="flex flex-col gap-4">
-      <Sustainability
-        simulationState={simulationState}
-        cumulativeEmissions={cumulativeEmissions}
-        maxRenewablePercentage={maxRenewablePercentage}
-        currentTotalGeneration={simulationState.generators.reduce(
-          (sum, gen) => sum + (gen.currentOutput || 0),
-          0
-        )}
-        currentRenewableGeneration={simulationState.generators
-          .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
-          .reduce((sum, g) => sum + (g.currentOutput || 0), 0)}
-        currentEmissionsRate={simulationState.generators.reduce(
-          (total, generator) => {
-            const emissionsFactor = EMISSIONS_FACTORS[generator.type] || 0;
-            return total + (generator.currentOutput || 0) * emissionsFactor;
-          },
-          0
-        )}
-        gridIntensity={
-          simulationState.generators.reduce(
-            (sum, gen) => sum + (gen.currentOutput || 0),
-            0
-          ) > 0
-            ? simulationState.generators.reduce((total, generator) => {
-                const emissionsFactor = EMISSIONS_FACTORS[generator.type] || 0;
-                return total + (generator.currentOutput || 0) * emissionsFactor;
-              }, 0) /
-              simulationState.generators.reduce(
-                (sum, gen) => sum + (gen.currentOutput || 0),
-                0
-              )
-            : 0
-        }
-        generationMix={simulationState.generators.reduce((acc, generator) => {
-          if (!acc[generator.type]) {
-            acc[generator.type] = { output: 0, emissions: 0 };
-          }
-          acc[generator.type].output += generator.currentOutput || 0;
-          acc[generator.type].emissions +=
-            (generator.currentOutput || 0) *
-            (EMISSIONS_FACTORS[generator.type] || 0);
-          return acc;
-        }, {} as Record<string, { output: number; emissions: number }>)}
-      />
+      <Sustainability simulationState={simulationState} />
     </div>
   );
 }

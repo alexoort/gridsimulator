@@ -59,6 +59,15 @@ const getInitialState = (): SimulationState => ({
     windData: Array(24).fill(0.7),
     demandData: Array(24).fill(1000),
   },
+  sustainability: {
+    currentEmissions: 0,
+    cumulativeEmissions: 0,
+    maxRenewablePercentage: 0,
+    cumulativeTotalGeneration: 0,
+    totalGeneration: 0,
+    renewableGeneration: 0,
+    generationMix: {},
+  },
   balance: INITIAL_BALANCE,
   iteration: 0,
   currentDate: "2024-01-01",
@@ -76,6 +85,9 @@ export default function Dashboard() {
   const [cumulativeEmissions, setCumulativeEmissions] = useState(0);
   const [maxRenewablePercentage, setMaxRenewablePercentage] = useState(0);
   const [cumulativeTotalGeneration, setCumulativeTotalGeneration] = useState(0);
+  const [currentEmissionsRate, setCurrentEmissionsRate] = useState(0);
+  const [gridIntensity, setGridIntensity] = useState(0);
+  const [currentRenewableMix, setCurrentRenewableMix] = useState(0);
 
   // Format date for display - using UTC to ensure consistency
   const formatDateTime = (date: string, hour: number) => {
@@ -340,19 +352,23 @@ export default function Dashboard() {
                   receivedCumulativeEmissions: metrics.cumulativeEmissions,
                   receivedCumulativeTotalGeneration:
                     metrics.cumulativeTotalGeneration,
+                  receivedCurrentEmissionsRate: metrics.currentEmissionsRate,
+                  receivedGridIntensity: metrics.gridIntensity,
+                  receivedCurrentRenewableMix: metrics.currentRenewableMix,
                   currentStateValues: {
                     cumulativeEmissions,
                     cumulativeTotalGeneration,
-                  },
-                  willSetTo: {
-                    newCumulativeEmissions: metrics.cumulativeEmissions,
-                    newCumulativeTotalGeneration:
-                      metrics.cumulativeTotalGeneration,
+                    currentEmissionsRate,
+                    gridIntensity,
+                    currentRenewableMix,
                   },
                 });
                 setCumulativeEmissions(metrics.cumulativeEmissions);
                 setCumulativeTotalGeneration(metrics.cumulativeTotalGeneration);
                 setMaxRenewablePercentage(metrics.maxRenewablePercentage);
+                setCurrentEmissionsRate(metrics.currentEmissionsRate);
+                setGridIntensity(metrics.gridIntensity);
+                setCurrentRenewableMix(metrics.currentRenewableMix);
               }
             }}
           />
@@ -391,59 +407,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Sustainability
-              simulationState={simulationState}
-              cumulativeEmissions={cumulativeEmissions}
-              maxRenewablePercentage={maxRenewablePercentage}
-              currentTotalGeneration={simulationState.generators.reduce(
-                (sum, gen) => sum + (gen.currentOutput || 0),
-                0
-              )}
-              currentRenewableGeneration={simulationState.generators
-                .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
-                .reduce((sum, g) => sum + (g.currentOutput || 0), 0)}
-              currentEmissionsRate={simulationState.generators.reduce(
-                (total, generator) => {
-                  const emissionsFactor =
-                    EMISSIONS_FACTORS[generator.type] || 0;
-                  return (
-                    total + (generator.currentOutput || 0) * emissionsFactor
-                  );
-                },
-                0
-              )}
-              gridIntensity={
-                simulationState.generators.reduce(
-                  (sum, gen) => sum + (gen.currentOutput || 0),
-                  0
-                ) > 0
-                  ? simulationState.generators.reduce((total, generator) => {
-                      const emissionsFactor =
-                        EMISSIONS_FACTORS[generator.type] || 0;
-                      return (
-                        total + (generator.currentOutput || 0) * emissionsFactor
-                      );
-                    }, 0) /
-                    simulationState.generators.reduce(
-                      (sum, gen) => sum + (gen.currentOutput || 0),
-                      0
-                    )
-                  : 0
-              }
-              generationMix={simulationState.generators.reduce(
-                (acc, generator) => {
-                  if (!acc[generator.type]) {
-                    acc[generator.type] = { output: 0, emissions: 0 };
-                  }
-                  acc[generator.type].output += generator.currentOutput || 0;
-                  acc[generator.type].emissions +=
-                    (generator.currentOutput || 0) *
-                    (EMISSIONS_FACTORS[generator.type] || 0);
-                  return acc;
-                },
-                {} as Record<string, { output: number; emissions: number }>
-              )}
-            />
+            <Sustainability simulationState={simulationState} />
             <div className="space-y-6">
               <PowerGraph simulationState={simulationState} />
             </div>
