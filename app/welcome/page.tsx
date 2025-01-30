@@ -92,7 +92,7 @@ export default function WelcomePage() {
                     name="username"
                     type="text"
                     required
-                    className="mt-1 block w-full rounded-xl border border-purple-100 px-4 py-3 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-200 focus:ring-opacity-50 bg-white/50"
+                    className="mt-1 block w-full rounded-xl border border-purple-100 px-4 py-3 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-200 focus:ring-opacity-50 bg-white/50 text-gray-900"
                     placeholder="Enter your username"
                   />
                 </div>
@@ -110,7 +110,7 @@ export default function WelcomePage() {
                       name="email"
                       type="email"
                       required
-                      className="mt-1 block w-full rounded-xl border border-purple-100 px-4 py-3 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-200 focus:ring-opacity-50 bg-white/50"
+                      className="mt-1 block w-full rounded-xl border border-purple-100 px-4 py-3 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-200 focus:ring-opacity-50 bg-white/50 text-gray-900"
                       placeholder="Enter your email"
                     />
                   </div>
@@ -128,7 +128,7 @@ export default function WelcomePage() {
                     name="password"
                     type="password"
                     required
-                    className="mt-1 block w-full rounded-xl border border-purple-100 px-4 py-3 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-200 focus:ring-opacity-50 bg-white/50"
+                    className="mt-1 block w-full rounded-xl border border-purple-100 px-4 py-3 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-200 focus:ring-opacity-50 bg-white/50 text-gray-900"
                     placeholder="Enter your password"
                   />
                 </div>

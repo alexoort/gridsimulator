@@ -11,7 +11,7 @@ export default function AboutPage() {
     <main className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 p-6">
       <div className="container mx-auto max-w-4xl">
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push("/")}
           className="mb-6 flex items-center gap-2 text-purple-600 hover:text-purple-800 transition-colors"
         >
           <svg
@@ -42,7 +42,7 @@ export default function AboutPage() {
             <div className="flex-shrink-0">
               <div className="relative w-48 h-48 rounded-xl overflow-hidden shadow-lg">
                 <Image
-                  src="/Alex_OortAlonso.jpg"
+                  src="/Alex-oortalonso.jpg"
                   alt="Alex Oort-Alonso"
                   fill
                   style={{ objectFit: "cover" }}
@@ -75,9 +75,9 @@ export default function AboutPage() {
           <div className="space-y-8 text-gray-700">
             <p className="text-lg">
               So, I decided to build my own simulator. I wanted to make it
-              accessible to everyone, so I built it as a web app using modern
-              technologies like Next.js and Tailwind CSS (which I&apos;d never
-              used before). Hope you enjoy playing the simulator :)
+              accessible to everyone, so I built it as a web app using Next.js
+              and Tailwind CSS (which I&apos;d never used before). Hope you
+              enjoy playing the simulator :)
             </p>
 
             {/* Features Section with Grid */}

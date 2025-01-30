@@ -81,14 +81,6 @@ export default function Dashboard() {
     getInitialState()
   );
 
-  // State for sustainability metrics
-  const [cumulativeEmissions, setCumulativeEmissions] = useState(0);
-  const [maxRenewablePercentage, setMaxRenewablePercentage] = useState(0);
-  const [cumulativeTotalGeneration, setCumulativeTotalGeneration] = useState(0);
-  const [currentEmissionsRate, setCurrentEmissionsRate] = useState(0);
-  const [gridIntensity, setGridIntensity] = useState(0);
-  const [currentRenewableMix, setCurrentRenewableMix] = useState(0);
-
   // Format date for display - using UTC to ensure consistency
   const formatDateTime = (date: string, hour: number) => {
     const [year, month, day] = date.split("-").map(Number);
@@ -163,20 +155,10 @@ export default function Dashboard() {
 
     // Calculate grid intensity (kg CO2/MWh)
     const gridIntensity =
-      cumulativeTotalGeneration > 0
-        ? cumulativeEmissions / cumulativeTotalGeneration
+      simulationState.sustainability.totalGeneration > 0
+        ? simulationState.sustainability.currentEmissions /
+          simulationState.sustainability.totalGeneration
         : 0;
-
-    console.log("Grid intensity calculation:", {
-      cumulativeEmissions,
-      cumulativeTotalGeneration,
-      gridIntensity,
-      generators: simulationState.generators.map((g) => ({
-        type: g.type,
-        output: g.currentOutput,
-        emissionsFactor: EMISSIONS_FACTORS[g.type] || 0,
-      })),
-    });
 
     // Prepare stats object with all required fields
     const stats = {
@@ -185,9 +167,10 @@ export default function Dashboard() {
       endTime: simulationState.currentDate,
       moneyMade: simulationState.balance - INITIAL_BALANCE,
       averageFrequencyDeviation,
-      maxRenewablePercentage,
-      totalEmissions: cumulativeEmissions,
-      totalGeneration: cumulativeTotalGeneration,
+      maxRenewablePercentage:
+        simulationState.sustainability.maxRenewablePercentage,
+      totalEmissions: simulationState.sustainability.cumulativeEmissions,
+      totalGeneration: simulationState.sustainability.cumulativeTotalGeneration,
       realDate: new Date().toISOString(),
       endReason: reason || "manual",
       maxCustomers,
@@ -346,31 +329,6 @@ export default function Dashboard() {
           <GridSimulation
             simulationState={simulationState}
             setSimulationState={setSimulationState}
-            onMetricsUpdate={(metrics) => {
-              if (simulationState.network.isRunning) {
-                console.log("Dashboard receiving metrics update:", {
-                  receivedCumulativeEmissions: metrics.cumulativeEmissions,
-                  receivedCumulativeTotalGeneration:
-                    metrics.cumulativeTotalGeneration,
-                  receivedCurrentEmissionsRate: metrics.currentEmissionsRate,
-                  receivedGridIntensity: metrics.gridIntensity,
-                  receivedCurrentRenewableMix: metrics.currentRenewableMix,
-                  currentStateValues: {
-                    cumulativeEmissions,
-                    cumulativeTotalGeneration,
-                    currentEmissionsRate,
-                    gridIntensity,
-                    currentRenewableMix,
-                  },
-                });
-                setCumulativeEmissions(metrics.cumulativeEmissions);
-                setCumulativeTotalGeneration(metrics.cumulativeTotalGeneration);
-                setMaxRenewablePercentage(metrics.maxRenewablePercentage);
-                setCurrentEmissionsRate(metrics.currentEmissionsRate);
-                setGridIntensity(metrics.gridIntensity);
-                setCurrentRenewableMix(metrics.currentRenewableMix);
-              }
-            }}
           />
         </div>
 

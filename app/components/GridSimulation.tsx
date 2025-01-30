@@ -8,16 +8,6 @@ import Sustainability from "./Sustainability";
 interface GridSimulationProps {
   simulationState: SimulationState;
   setSimulationState: React.Dispatch<React.SetStateAction<SimulationState>>;
-  onMetricsUpdate: (metrics: {
-    cumulativeEmissions: number;
-    maxRenewablePercentage: number;
-    cumulativeTotalGeneration: number;
-    currentTotalGeneration: number;
-    currentRenewableGeneration: number;
-    currentEmissionsRate: number;
-    gridIntensity: number;
-    currentRenewableMix: number;
-  }) => void;
 }
 
 interface MarketData {
@@ -48,7 +38,6 @@ interface MarketResponse {
 export default function GridSimulation({
   simulationState,
   setSimulationState,
-  onMetricsUpdate,
 }: GridSimulationProps) {
   const [marketData, setMarketData] = useState<MarketData[]>([]);
   const [currentDataIndex, setCurrentDataIndex] = useState(0);
@@ -603,20 +592,6 @@ export default function GridSimulation({
           renewableGeneration: currentRenewableGeneration,
           generationMix,
         };
-
-        // Call onMetricsUpdate with the new values
-        onMetricsUpdate({
-          cumulativeEmissions: newSustainability.cumulativeEmissions,
-          maxRenewablePercentage: newSustainability.maxRenewablePercentage,
-          cumulativeTotalGeneration:
-            newSustainability.cumulativeTotalGeneration,
-          currentTotalGeneration,
-          currentRenewableGeneration,
-          currentEmissionsRate: currentEmissions,
-          gridIntensity: currentEmissions,
-          currentRenewableMix:
-            (currentRenewableGeneration / currentTotalGeneration) * 100 || 0,
-        });
 
         return {
           ...prev,

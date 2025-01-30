@@ -166,7 +166,7 @@ export default function LandingPage() {
         </div>
 
         {/* Statistics Section */}
-        <div className="mt-24 text-center">
+        {/* <div className="mt-24 text-center">
           <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-900 text-transparent bg-clip-text mb-12">
             Global Statistics
           </h2>
@@ -190,7 +190,7 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-        </div>
+        </div> */}
       </div>
     </main>
   );

@@ -15,6 +15,7 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname === '/welcome' ||
     request.nextUrl.pathname === '/api/auth' ||
     request.nextUrl.pathname === '/' ||
+    request.nextUrl.pathname === '/about' ||
     request.nextUrl.pathname === '/dashboard'
   ) {
     return NextResponse.next();
