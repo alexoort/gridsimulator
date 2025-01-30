@@ -12,7 +12,7 @@ import PowerGraph from "../components/PowerGraph";
 import PIDController from "../components/PIDController";
 import Sustainability from "../components/Sustainability";
 import { useRouter } from "next/navigation";
-import { INITIAL_BALANCE, EMISSIONS_FACTORS } from "../types/grid";
+import { INITIAL_BALANCE } from "../types/grid";
 
 const getInitialState = (): SimulationState => ({
   network: {
