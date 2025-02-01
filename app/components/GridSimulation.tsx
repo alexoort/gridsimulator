@@ -6,6 +6,7 @@ import {
   SimulationState,
   Generator,
   SustainabilityStatus,
+  NetworkStatus,
 } from "../types/grid";
 import { EMISSIONS_FACTORS } from "../types/grid";
 import Sustainability from "./Sustainability";
@@ -124,31 +125,32 @@ export default function GridSimulation({
   }, [fetchMarketData, isInitialized, setSimulationState]);
 
   // Calculate total supply based on generators and market data
-  const calculateSupply = useCallback(() => {
-    let totalSupply = 0;
-    const currentMarketData = marketData[currentDataIndex];
+  const calculateSupply = useCallback(
+    (
+      generators: Generator[],
+      frequency: number,
+      pid: NetworkStatus["pid"],
+      currentMarketData: MarketData | undefined
+    ) => {
+      // Calculate PID correction
+      const error = frequency - 50;
+      const lastError = pid.lastError ?? error;
 
-    // Calculate PID correction
-    const error = simulationState.network.frequency - 50;
-    const { pid } = simulationState.network;
-    const lastError = pid.lastError ?? error;
+      // Calculate PID terms
+      const proportionalTerm = pid.kp * error;
+      const derivativeTerm = pid.kd * (error - lastError);
+      const newIntegral = (pid.integral || 0) + error;
+      const maxIntegral = 100 / pid.ki;
+      const clampedIntegral = Math.max(
+        -maxIntegral,
+        Math.min(maxIntegral, newIntegral)
+      );
+      const integralTerm = pid.ki * clampedIntegral;
 
-    // Calculate PID terms
-    const proportionalTerm = pid.kp * error;
-    const derivativeTerm = pid.kd * (error - lastError);
-    const newIntegral = (pid.integral || 0) + error;
-    const maxIntegral = 100 / pid.ki;
-    const clampedIntegral = Math.max(
-      -maxIntegral,
-      Math.min(maxIntegral, newIntegral)
-    );
-    const integralTerm = pid.ki * clampedIntegral;
+      const pidCorrection = -(proportionalTerm + integralTerm + derivativeTerm);
 
-    const pidCorrection = -(proportionalTerm + integralTerm + derivativeTerm);
-
-    // Calculate outputs and update state in one pass
-    setSimulationState((prev) => {
-      const updatedGenerators = prev.generators.map((generator) => {
+      // Calculate outputs
+      const updatedGenerators = generators.map((generator) => {
         let output = generator.capacity;
 
         if (currentMarketData) {
@@ -169,47 +171,29 @@ export default function GridSimulation({
           }
         }
 
-        // Add to total supply while we're iterating
-        totalSupply += output;
-
         return {
           ...generator,
           currentOutput: output,
         };
       });
 
+      const totalSupply = updatedGenerators.reduce(
+        (sum, gen) => sum + (gen.currentOutput || 0),
+        0
+      );
+
       return {
-        ...prev,
-        generators: updatedGenerators,
-        network: {
-          ...prev.network,
-          pid: {
-            ...prev.network.pid,
-            integral: clampedIntegral,
-            lastError: error,
-          },
+        updatedGenerators,
+        totalSupply,
+        newPidState: {
+          ...pid,
+          integral: clampedIntegral,
+          lastError: error,
         },
       };
-    });
-
-    // Store cumulative generation in localStorage
-    const storedGeneration = localStorage.getItem("cumulativeGeneration");
-    const cumulativeGeneration = storedGeneration
-      ? parseFloat(storedGeneration) + totalSupply
-      : totalSupply;
-    localStorage.setItem(
-      "cumulativeGeneration",
-      cumulativeGeneration.toString()
-    );
-
-    return totalSupply;
-  }, [
-    simulationState.generators,
-    marketData,
-    currentDataIndex,
-    simulationState.network.frequency,
-    setSimulationState,
-  ]);
+    },
+    []
+  );
 
   // Calculate load based on market data and customer base
 
@@ -391,91 +375,96 @@ export default function GridSimulation({
     return price;
   };
 
-  const calculateSustainability = useCallback((): SustainabilityStatus => {
-    // Calculate total and renewable generation for current render
-    const currentTotalGeneration = simulationState.generators.reduce(
-      (sum: number, gen: Generator) => sum + (gen.currentOutput || 0),
-      0
-    );
+  const calculateSustainability = useCallback(
+    (generators: Generator[]): SustainabilityStatus => {
+      // Calculate total and renewable generation for current render
+      const currentTotalGeneration = generators.reduce(
+        (sum: number, gen: Generator) => sum + (gen.currentOutput || 0),
+        0
+      );
 
-    const currentRenewableGeneration = simulationState.generators
-      .filter((g: Generator) => ["solar", "wind", "hydro"].includes(g.type))
-      .reduce((sum: number, g: Generator) => sum + (g.currentOutput || 0), 0);
+      const currentRenewableGeneration = generators
+        .filter((g: Generator) => ["solar", "wind", "hydro"].includes(g.type))
+        .reduce((sum: number, g: Generator) => sum + (g.currentOutput || 0), 0);
 
-    // Calculate emissions for this tick
-    const currentEmissions = simulationState.generators.reduce(
-      (total: number, generator: Generator) => {
-        const emissionsFactor = EMISSIONS_FACTORS[generator.type] || 0;
-        return total + (generator.currentOutput || 0) * emissionsFactor;
-      },
-      0
-    );
+      // Calculate emissions for this tick
+      const currentEmissions = generators.reduce(
+        (total: number, generator: Generator) => {
+          const emissionsFactor = EMISSIONS_FACTORS[generator.type] || 0;
+          return total + (generator.currentOutput || 0) * emissionsFactor;
+        },
+        0
+      );
 
-    // Calculate generation mix
-    const generationMix = simulationState.generators.reduce(
-      (mix: Record<string, number>, generator: Generator) => {
-        mix[generator.type] = generator.currentOutput || 0;
-        return mix;
-      },
-      {} as Record<string, number>
-    );
+      // Calculate generation mix
+      const generationMix = generators.reduce(
+        (mix: Record<string, number>, generator: Generator) => {
+          mix[generator.type] = generator.currentOutput || 0;
+          return mix;
+        },
+        {} as Record<string, number>
+      );
 
-    console.log("Calculating sustainability metrics:", {
-      currentTotalGeneration,
-      currentRenewableGeneration,
-      currentEmissions,
-      previousState: {
-        cumulativeEmissions: simulationState.sustainability.cumulativeEmissions,
-        cumulativeTotalGeneration:
-          simulationState.sustainability.cumulativeTotalGeneration,
-        maxRenewablePercentage:
-          simulationState.sustainability.maxRenewablePercentage,
-      },
-      generators: simulationState.generators.map((g: Generator) => ({
-        type: g.type,
-        output: g.currentOutput,
-        emissions: (g.currentOutput || 0) * (EMISSIONS_FACTORS[g.type] || 0),
-      })),
-    });
-
-    // Create new sustainability metrics
-    const newSustainability: SustainabilityStatus = {
-      currentEmissions,
-      cumulativeEmissions:
-        simulationState.sustainability.cumulativeEmissions + currentEmissions,
-      maxRenewablePercentage: Math.max(
-        simulationState.sustainability.maxRenewablePercentage,
-        (currentRenewableGeneration / currentTotalGeneration) * 100 || 0
-      ),
-      cumulativeTotalGeneration:
-        simulationState.sustainability.cumulativeTotalGeneration +
+      console.log("Calculating sustainability metrics:", {
         currentTotalGeneration,
-      totalGeneration: currentTotalGeneration,
-      renewableGeneration: currentRenewableGeneration,
-      generationMix,
-    };
+        currentRenewableGeneration,
+        currentEmissions,
+        previousState: {
+          cumulativeEmissions:
+            simulationState.sustainability.cumulativeEmissions,
+          cumulativeTotalGeneration:
+            simulationState.sustainability.cumulativeTotalGeneration,
+          maxRenewablePercentage:
+            simulationState.sustainability.maxRenewablePercentage,
+        },
+        generators: generators.map((g: Generator) => ({
+          type: g.type,
+          output: g.currentOutput,
+          emissions: (g.currentOutput || 0) * (EMISSIONS_FACTORS[g.type] || 0),
+        })),
+      });
 
-    console.log("Updated sustainability metrics:", {
-      newMetrics: {
-        currentEmissions: newSustainability.currentEmissions,
-        cumulativeEmissions: newSustainability.cumulativeEmissions,
-        maxRenewablePercentage: newSustainability.maxRenewablePercentage,
-        cumulativeTotalGeneration: newSustainability.cumulativeTotalGeneration,
-        totalGeneration: newSustainability.totalGeneration,
-        renewableGeneration: newSustainability.renewableGeneration,
-      },
-      change: {
-        emissionsChange:
-          newSustainability.cumulativeEmissions -
-          simulationState.sustainability.cumulativeEmissions,
-        generationChange:
-          newSustainability.cumulativeTotalGeneration -
-          simulationState.sustainability.cumulativeTotalGeneration,
-      },
-    });
+      // Create new sustainability metrics
+      const newSustainability: SustainabilityStatus = {
+        currentEmissions,
+        cumulativeEmissions:
+          simulationState.sustainability.cumulativeEmissions + currentEmissions,
+        maxRenewablePercentage: Math.max(
+          simulationState.sustainability.maxRenewablePercentage,
+          (currentRenewableGeneration / currentTotalGeneration) * 100 || 0
+        ),
+        cumulativeTotalGeneration:
+          simulationState.sustainability.cumulativeTotalGeneration +
+          currentTotalGeneration,
+        totalGeneration: currentTotalGeneration,
+        renewableGeneration: currentRenewableGeneration,
+        generationMix,
+      };
 
-    return newSustainability;
-  }, [simulationState.generators, simulationState.sustainability]);
+      console.log("Updated sustainability metrics:", {
+        newMetrics: {
+          currentEmissions: newSustainability.currentEmissions,
+          cumulativeEmissions: newSustainability.cumulativeEmissions,
+          maxRenewablePercentage: newSustainability.maxRenewablePercentage,
+          cumulativeTotalGeneration:
+            newSustainability.cumulativeTotalGeneration,
+          totalGeneration: newSustainability.totalGeneration,
+          renewableGeneration: newSustainability.renewableGeneration,
+        },
+        change: {
+          emissionsChange:
+            newSustainability.cumulativeEmissions -
+            simulationState.sustainability.cumulativeEmissions,
+          generationChange:
+            newSustainability.cumulativeTotalGeneration -
+            simulationState.sustainability.cumulativeTotalGeneration,
+        },
+      });
+
+      return newSustainability;
+    },
+    [simulationState.sustainability]
+  );
 
   // Simulation update callback
   const updateSimulation = useCallback(() => {
@@ -497,25 +486,37 @@ export default function GridSimulation({
         const nextDataIndex = (currentDataIndex + 1) % marketData.length;
         setCurrentDataIndex(nextDataIndex);
 
-        // Calculate initial supply and demand
-        const baseSupply = calculateSupply();
-        const load = calculateLoad();
+        const currentMarketData = marketData[currentDataIndex];
+
+        // Calculate supply and generator updates
+        const { updatedGenerators, totalSupply, newPidState } = calculateSupply(
+          prev.generators,
+          prev.network.frequency,
+          prev.network.pid,
+          currentMarketData
+        );
+
+        // Calculate load
+        const load = currentMarketData
+          ? currentMarketData.load_mw *
+            (prev.network.customers / BASE_CUSTOMERS)
+          : 0;
 
         // Calculate battery contribution
-        const batteryPower = calculateBatteryPower(baseSupply, load);
-        const totalSupply = baseSupply - batteryPower; // Subtract because negative means discharge
+        const batteryPower = calculateBatteryPower(totalSupply, load);
+        const finalSupply = totalSupply - batteryPower; // Subtract because negative means discharge
 
         // Update battery state
         const newBatteryState = updateBatteryState(batteryPower);
 
         // Calculate grid frequency with battery contribution
         const frequency = calculateFrequency(
-          totalSupply,
+          finalSupply,
           load,
           prev.network.frequency
         );
 
-        // Update frequency history - now keep all data points
+        // Update frequency history
         const newFrequencyHistory = [
           ...(prev.network.frequencyHistory || []),
           { frequency, timestamp: Date.now() },
@@ -532,33 +533,32 @@ export default function GridSimulation({
 
         // Update price every 12 data points
         const shouldUpdatePrice = recentDeviations.length >= 12;
-
-        // Calculate new price if needed
-        let newPrice = prev.market.pricePerMWh;
-        if (shouldUpdatePrice) {
-          newPrice = calculatePrice(recentDeviations);
-        }
+        const newPrice = shouldUpdatePrice
+          ? calculatePrice(recentDeviations)
+          : prev.market.pricePerMWh;
 
         // Calculate financial update
         const netIncome = calculateFinancials(
-          totalSupply,
+          finalSupply,
           batteryPower,
           prev.market.pricePerMWh
         );
 
-        // Calculate new sustainability metrics
-        const newSustainability = calculateSustainability();
+        // Calculate new sustainability metrics with updated generators
+        const newSustainability = calculateSustainability(updatedGenerators);
 
         return {
           ...prev,
+          generators: updatedGenerators,
           currentDate: newDate,
           currentHour: newHour,
           network: {
             ...prev.network,
             frequency,
             loadMW: load,
-            supplyMW: totalSupply,
+            supplyMW: finalSupply,
             frequencyHistory: newFrequencyHistory,
+            pid: newPidState,
           },
           battery: newBatteryState,
           market: {
@@ -581,16 +581,14 @@ export default function GridSimulation({
     simulationState.network.isRunning,
     simulationState.network.speed,
     calculateSupply,
-    calculateLoad,
     calculateFrequency,
     calculateBatteryPower,
     updateBatteryState,
     calculateFinancials,
     calculateSustainability,
     getNextDate,
-    marketData.length,
+    marketData,
     currentDataIndex,
-    setSimulationState,
     setCurrentDataIndex,
   ]);
 
