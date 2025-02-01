@@ -239,7 +239,7 @@ export default function GridSimulation({
   ]);
 
   // Calculate load based on market data and customer base
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   const calculateLoad = useCallback(() => {
     const currentMarketData = marketData[currentDataIndex];
     if (!currentMarketData) return 0;
@@ -485,8 +485,8 @@ export default function GridSimulation({
     return price;
   };
 
-  // Update simulation state
-  useEffect(() => {
+  // Simulation update callback
+  const updateSimulation = useCallback(() => {
     if (!simulationState.network.isRunning) return;
 
     const intervalId = setInterval(() => {
@@ -576,6 +576,24 @@ export default function GridSimulation({
           return mix;
         }, {} as Record<string, number>);
 
+        console.log("Calculating sustainability metrics:", {
+          currentTotalGeneration,
+          currentRenewableGeneration,
+          currentEmissions,
+          previousState: {
+            cumulativeEmissions: prev.sustainability.cumulativeEmissions,
+            cumulativeTotalGeneration:
+              prev.sustainability.cumulativeTotalGeneration,
+            maxRenewablePercentage: prev.sustainability.maxRenewablePercentage,
+          },
+          generators: prev.generators.map((g) => ({
+            type: g.type,
+            output: g.currentOutput,
+            emissions:
+              (g.currentOutput || 0) * (EMISSIONS_FACTORS[g.type] || 0),
+          })),
+        });
+
         // Update sustainability metrics
         const newSustainability = {
           currentEmissions,
@@ -592,6 +610,26 @@ export default function GridSimulation({
           renewableGeneration: currentRenewableGeneration,
           generationMix,
         };
+
+        console.log("Updated sustainability metrics:", {
+          newMetrics: {
+            currentEmissions: newSustainability.currentEmissions,
+            cumulativeEmissions: newSustainability.cumulativeEmissions,
+            maxRenewablePercentage: newSustainability.maxRenewablePercentage,
+            cumulativeTotalGeneration:
+              newSustainability.cumulativeTotalGeneration,
+            totalGeneration: newSustainability.totalGeneration,
+            renewableGeneration: newSustainability.renewableGeneration,
+          },
+          change: {
+            emissionsChange:
+              newSustainability.cumulativeEmissions -
+              prev.sustainability.cumulativeEmissions,
+            generationChange:
+              newSustainability.cumulativeTotalGeneration -
+              prev.sustainability.cumulativeTotalGeneration,
+          },
+        });
 
         return {
           ...prev,
@@ -633,7 +671,14 @@ export default function GridSimulation({
     getNextDate,
     marketData.length,
     currentDataIndex,
+    setSimulationState,
+    setCurrentDataIndex,
   ]);
+
+  // Use the callback in useEffect
+  useEffect(() => {
+    return updateSimulation();
+  }, [updateSimulation]);
 
   // Handle date or hour changes
   useEffect(() => {

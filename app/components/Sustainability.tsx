@@ -19,6 +19,25 @@ export default function Sustainability({
     generationMix,
   } = simulationState.sustainability;
 
+  // Log sustainability metrics when they change
+  console.log("Sustainability component received update:", {
+    metrics: {
+      currentEmissions,
+      cumulativeEmissions,
+      maxRenewablePercentage,
+      totalGeneration,
+      renewableGeneration,
+    },
+    generationMixSummary: Object.entries(generationMix).map(
+      ([type, output]) => ({
+        type,
+        output,
+        emissions: output * (EMISSIONS_FACTORS[type] || 0),
+        percentage: totalGeneration > 0 ? (output / totalGeneration) * 100 : 0,
+      })
+    ),
+  });
+
   // Calculate current renewable percentage
   const currentRenewablePercentage =
     totalGeneration > 0 ? (renewableGeneration / totalGeneration) * 100 : 0;

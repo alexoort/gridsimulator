@@ -64,14 +64,13 @@ export default function WelcomePage() {
               </h1>
               <p className="text-xl text-purple-700 font-medium">
                 {isLogin
-                  ? "Sign in to continue your journey"
-                  : "Join the grid management revolution"}
+                  ? "Sign in to continue managing the grid"
+                  : "Join to manage your own power grid"}
               </p>
             </div>
             <p className="text-gray-600 text-lg leading-relaxed">
-              Take control of a modern power grid, balance supply and demand,
-              maintain grid frequency, and lead the transition to renewable
-              energy.
+              Balance supply and demand, maintain grid frequency, and lead the
+              transition to renewable energy.
             </p>
           </div>
 
