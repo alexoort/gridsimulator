@@ -79,3 +79,4 @@ export const EMISSIONS_FACTORS: Record<string, number> = {
 
 // Other shared constants can go here
 export const INITIAL_BALANCE = 10000; 
+export const BASE_CUSTOMERS = 7500000;

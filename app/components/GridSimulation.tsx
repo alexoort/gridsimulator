@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
-import { SimulationState } from "../types/grid";
+import {
+  BASE_CUSTOMERS,
+  SimulationState,
+  Generator,
+  SustainabilityStatus,
+} from "../types/grid";
 import { EMISSIONS_FACTORS } from "../types/grid";
 import Sustainability from "./Sustainability";
 
@@ -126,17 +131,13 @@ export default function GridSimulation({
     // Calculate PID correction
     const error = simulationState.network.frequency - 50;
     const { pid } = simulationState.network;
-
-    // Ensure lastError is defined
     const lastError = pid.lastError ?? error;
 
     // Calculate PID terms
     const proportionalTerm = pid.kp * error;
     const derivativeTerm = pid.kd * (error - lastError);
-
-    // Integral term - accumulate error over time
     const newIntegral = (pid.integral || 0) + error;
-    const maxIntegral = 100 / pid.ki; // Prevent excessive buildup
+    const maxIntegral = 100 / pid.ki;
     const clampedIntegral = Math.max(
       -maxIntegral,
       Math.min(maxIntegral, newIntegral)
@@ -145,13 +146,12 @@ export default function GridSimulation({
 
     const pidCorrection = -(proportionalTerm + integralTerm + derivativeTerm);
 
-    // Update state with clamped integral and generator outputs
+    // Calculate outputs and update state in one pass
     setSimulationState((prev) => {
       const updatedGenerators = prev.generators.map((generator) => {
         let output = generator.capacity;
 
         if (currentMarketData) {
-          // Adjust output based on generator type and market data
           switch (generator.type) {
             case "solar":
               output *= currentMarketData.solar_factor;
@@ -159,9 +159,7 @@ export default function GridSimulation({
             case "wind":
               output *= currentMarketData.wind_factor;
               break;
-            // Apply PID correction to non-renewable sources
             default:
-              // Limit correction to ±50% of capacity
               const correctionFactor = Math.max(
                 -0.5,
                 Math.min(0.5, pidCorrection / 100)
@@ -170,6 +168,9 @@ export default function GridSimulation({
               break;
           }
         }
+
+        // Add to total supply while we're iterating
+        totalSupply += output;
 
         return {
           ...generator,
@@ -189,34 +190,6 @@ export default function GridSimulation({
           },
         },
       };
-    });
-
-    // Calculate total supply from updated generator outputs
-    simulationState.generators.forEach((generator) => {
-      let output = generator.capacity;
-
-      if (!currentMarketData) return output;
-
-      // Adjust output based on generator type and market data
-      switch (generator.type) {
-        case "solar":
-          output *= currentMarketData.solar_factor;
-          break;
-        case "wind":
-          output *= currentMarketData.wind_factor;
-          break;
-        // Apply PID correction to non-renewable sources
-        default:
-          // Limit correction to ±50% of capacity
-          const correctionFactor = Math.max(
-            -0.5,
-            Math.min(0.5, pidCorrection / 100)
-          );
-          output *= 1 + correctionFactor;
-          break;
-      }
-
-      totalSupply += output;
     });
 
     // Store cumulative generation in localStorage
@@ -245,36 +218,16 @@ export default function GridSimulation({
     if (!currentMarketData) return 0;
 
     // Scale the historical load based on our current customer base
-    const historicalCustomers = 7500000; // Baseline customer count https://www.iso-ne.com/about/key-stats
-    const customerRatio =
-      simulationState.network.customers / historicalCustomers;
+    const customerRatio = simulationState.network.customers / BASE_CUSTOMERS;
     return currentMarketData.load_mw * customerRatio;
   }, [marketData, currentDataIndex, simulationState.network.customers]);
 
   // Calculate total system inertia from all generators using weighted average
   const calculateSystemInertia = useCallback(() => {
-    // Log initial state
-    console.log(
-      "Starting inertia calculation with generators:",
-      simulationState.generators.map((g) => ({
-        type: g.type,
-        capacity: g.capacity,
-        inertia: g.inertia,
-        product: g.inertia * g.capacity,
-      }))
-    );
-
     // Calculate sum of (inertia * rated power) for each generator
     const weightedInertiaSum = simulationState.generators.reduce(
       (sum, generator) => {
         const product = generator.inertia * generator.capacity;
-        console.log("Adding to weighted sum:", {
-          type: generator.type,
-          inertia: generator.inertia,
-          capacity: generator.capacity,
-          product,
-          runningSum: sum + product,
-        });
         return sum + product;
       },
       0
@@ -283,11 +236,6 @@ export default function GridSimulation({
     // Calculate total system base power (sum of all generator capacities)
     const totalBasePower = simulationState.generators.reduce(
       (sum, generator) => {
-        console.log("Adding to base power:", {
-          type: generator.type,
-          capacity: generator.capacity,
-          runningSum: sum + generator.capacity,
-        });
         return sum + generator.capacity;
       },
       0
@@ -319,14 +267,6 @@ export default function GridSimulation({
       // Implement the formula: Δf = ΔP / (2H * f0)
       const frequencyDeviation =
         powerImbalance / (2 * systemInertia * nominalFrequency);
-
-      // Log frequency calculation details
-      console.log("Frequency calculation:", {
-        powerImbalance,
-        systemInertia,
-        frequencyDeviation,
-        finalFrequency: currentFrequency + frequencyDeviation,
-      });
 
       return currentFrequency + frequencyDeviation;
     },
@@ -365,15 +305,6 @@ export default function GridSimulation({
         batteryPower = maxCharge;
       }
 
-      // Log battery action
-      console.log("Battery operation:", {
-        imbalance,
-        batteryPower,
-        currentCharge: battery.currentCharge,
-        efficiency: battery.efficiency,
-        atMaxRate: Math.abs(batteryPower) >= battery.maxRate,
-      });
-
       return batteryPower;
     },
     [simulationState.battery]
@@ -398,15 +329,6 @@ export default function GridSimulation({
           simulationState.battery.currentCharge + energyChange
         )
       );
-
-      // Log battery state update
-      console.log("Updating battery state:", {
-        batteryPower,
-        energyChange,
-        currentCharge: simulationState.battery.currentCharge,
-        newCharge,
-        efficiency: simulationState.battery.efficiency,
-      });
 
       return {
         ...simulationState.battery,
@@ -442,22 +364,6 @@ export default function GridSimulation({
       // Calculate net income
       const netIncome = revenue - operationalCosts - batteryOpCost;
 
-      console.log("Financial update:", {
-        powerDelivered,
-        totalSupply: supply,
-        totalLoad: currentLoad,
-        revenue,
-        operationalCosts,
-        batteryOpCost,
-        netIncome,
-        pricePerMWh,
-        generatorOutputs: simulationState.generators.map((g) => ({
-          type: g.type,
-          output: g.currentOutput,
-          cost: g.currentOutput * g.variableCost,
-        })),
-      });
-
       return netIncome;
     },
     [simulationState.generators, calculateLoad]
@@ -484,6 +390,92 @@ export default function GridSimulation({
 
     return price;
   };
+
+  const calculateSustainability = useCallback((): SustainabilityStatus => {
+    // Calculate total and renewable generation for current render
+    const currentTotalGeneration = simulationState.generators.reduce(
+      (sum: number, gen: Generator) => sum + (gen.currentOutput || 0),
+      0
+    );
+
+    const currentRenewableGeneration = simulationState.generators
+      .filter((g: Generator) => ["solar", "wind", "hydro"].includes(g.type))
+      .reduce((sum: number, g: Generator) => sum + (g.currentOutput || 0), 0);
+
+    // Calculate emissions for this tick
+    const currentEmissions = simulationState.generators.reduce(
+      (total: number, generator: Generator) => {
+        const emissionsFactor = EMISSIONS_FACTORS[generator.type] || 0;
+        return total + (generator.currentOutput || 0) * emissionsFactor;
+      },
+      0
+    );
+
+    // Calculate generation mix
+    const generationMix = simulationState.generators.reduce(
+      (mix: Record<string, number>, generator: Generator) => {
+        mix[generator.type] = generator.currentOutput || 0;
+        return mix;
+      },
+      {} as Record<string, number>
+    );
+
+    console.log("Calculating sustainability metrics:", {
+      currentTotalGeneration,
+      currentRenewableGeneration,
+      currentEmissions,
+      previousState: {
+        cumulativeEmissions: simulationState.sustainability.cumulativeEmissions,
+        cumulativeTotalGeneration:
+          simulationState.sustainability.cumulativeTotalGeneration,
+        maxRenewablePercentage:
+          simulationState.sustainability.maxRenewablePercentage,
+      },
+      generators: simulationState.generators.map((g: Generator) => ({
+        type: g.type,
+        output: g.currentOutput,
+        emissions: (g.currentOutput || 0) * (EMISSIONS_FACTORS[g.type] || 0),
+      })),
+    });
+
+    // Create new sustainability metrics
+    const newSustainability: SustainabilityStatus = {
+      currentEmissions,
+      cumulativeEmissions:
+        simulationState.sustainability.cumulativeEmissions + currentEmissions,
+      maxRenewablePercentage: Math.max(
+        simulationState.sustainability.maxRenewablePercentage,
+        (currentRenewableGeneration / currentTotalGeneration) * 100 || 0
+      ),
+      cumulativeTotalGeneration:
+        simulationState.sustainability.cumulativeTotalGeneration +
+        currentTotalGeneration,
+      totalGeneration: currentTotalGeneration,
+      renewableGeneration: currentRenewableGeneration,
+      generationMix,
+    };
+
+    console.log("Updated sustainability metrics:", {
+      newMetrics: {
+        currentEmissions: newSustainability.currentEmissions,
+        cumulativeEmissions: newSustainability.cumulativeEmissions,
+        maxRenewablePercentage: newSustainability.maxRenewablePercentage,
+        cumulativeTotalGeneration: newSustainability.cumulativeTotalGeneration,
+        totalGeneration: newSustainability.totalGeneration,
+        renewableGeneration: newSustainability.renewableGeneration,
+      },
+      change: {
+        emissionsChange:
+          newSustainability.cumulativeEmissions -
+          simulationState.sustainability.cumulativeEmissions,
+        generationChange:
+          newSustainability.cumulativeTotalGeneration -
+          simulationState.sustainability.cumulativeTotalGeneration,
+      },
+    });
+
+    return newSustainability;
+  }, [simulationState.generators, simulationState.sustainability]);
 
   // Simulation update callback
   const updateSimulation = useCallback(() => {
@@ -554,82 +546,8 @@ export default function GridSimulation({
           prev.market.pricePerMWh
         );
 
-        // Calculate total and renewable generation for current render
-        const currentTotalGeneration = prev.generators.reduce(
-          (sum, gen) => sum + (gen.currentOutput || 0),
-          0
-        );
-
-        const currentRenewableGeneration = prev.generators
-          .filter((g) => ["solar", "wind", "hydro"].includes(g.type))
-          .reduce((sum, g) => sum + (g.currentOutput || 0), 0);
-
-        // Calculate emissions for this tick
-        const currentEmissions = prev.generators.reduce((total, generator) => {
-          const emissionsFactor = EMISSIONS_FACTORS[generator.type] || 0;
-          return total + (generator.currentOutput || 0) * emissionsFactor;
-        }, 0);
-
-        // Calculate generation mix
-        const generationMix = prev.generators.reduce((mix, generator) => {
-          mix[generator.type] = generator.currentOutput || 0;
-          return mix;
-        }, {} as Record<string, number>);
-
-        console.log("Calculating sustainability metrics:", {
-          currentTotalGeneration,
-          currentRenewableGeneration,
-          currentEmissions,
-          previousState: {
-            cumulativeEmissions: prev.sustainability.cumulativeEmissions,
-            cumulativeTotalGeneration:
-              prev.sustainability.cumulativeTotalGeneration,
-            maxRenewablePercentage: prev.sustainability.maxRenewablePercentage,
-          },
-          generators: prev.generators.map((g) => ({
-            type: g.type,
-            output: g.currentOutput,
-            emissions:
-              (g.currentOutput || 0) * (EMISSIONS_FACTORS[g.type] || 0),
-          })),
-        });
-
-        // Update sustainability metrics
-        const newSustainability = {
-          currentEmissions,
-          cumulativeEmissions:
-            prev.sustainability.cumulativeEmissions + currentEmissions,
-          maxRenewablePercentage: Math.max(
-            prev.sustainability.maxRenewablePercentage,
-            (currentRenewableGeneration / currentTotalGeneration) * 100 || 0
-          ),
-          cumulativeTotalGeneration:
-            prev.sustainability.cumulativeTotalGeneration +
-            currentTotalGeneration,
-          totalGeneration: currentTotalGeneration,
-          renewableGeneration: currentRenewableGeneration,
-          generationMix,
-        };
-
-        console.log("Updated sustainability metrics:", {
-          newMetrics: {
-            currentEmissions: newSustainability.currentEmissions,
-            cumulativeEmissions: newSustainability.cumulativeEmissions,
-            maxRenewablePercentage: newSustainability.maxRenewablePercentage,
-            cumulativeTotalGeneration:
-              newSustainability.cumulativeTotalGeneration,
-            totalGeneration: newSustainability.totalGeneration,
-            renewableGeneration: newSustainability.renewableGeneration,
-          },
-          change: {
-            emissionsChange:
-              newSustainability.cumulativeEmissions -
-              prev.sustainability.cumulativeEmissions,
-            generationChange:
-              newSustainability.cumulativeTotalGeneration -
-              prev.sustainability.cumulativeTotalGeneration,
-          },
-        });
+        // Calculate new sustainability metrics
+        const newSustainability = calculateSustainability();
 
         return {
           ...prev,
@@ -668,6 +586,7 @@ export default function GridSimulation({
     calculateBatteryPower,
     updateBatteryState,
     calculateFinancials,
+    calculateSustainability,
     getNextDate,
     marketData.length,
     currentDataIndex,
