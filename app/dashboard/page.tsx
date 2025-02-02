@@ -12,7 +12,7 @@ import PowerGraph from "../components/PowerGraph";
 import PIDController from "../components/PIDController";
 import Sustainability from "../components/Sustainability";
 import { useRouter } from "next/navigation";
-import { INITIAL_BALANCE } from "../types/grid";
+import { INITIAL_BALANCE, EMISSIONS_FACTORS } from "../types/grid";
 
 const getInitialState = (): SimulationState => ({
   network: {
@@ -224,7 +224,7 @@ export default function Dashboard() {
                 <input
                   type="range"
                   min="1"
-                  max="50"
+                  max="30"
                   value={simulationState.network.speed}
                   onChange={(e) =>
                     setSimulationState((prev) => ({
@@ -243,7 +243,7 @@ export default function Dashboard() {
                 />
                 <div className="flex justify-between text-xs text-gray-600">
                   <span>1x</span>
-                  <span>50x</span>
+                  <span>30x</span>
                 </div>
                 <div className="flex gap-2">
                   {simulationState.network.isRunning ? (
@@ -397,6 +397,42 @@ export default function Dashboard() {
             <Sustainability simulationState={simulationState} />
             <div className="space-y-6">
               <PowerGraph simulationState={simulationState} />
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-lg font-semibold mb-4">Generation Mix</h3>
+                {Object.entries(
+                  simulationState.sustainability.generationMix
+                ).map(([type, output]) => {
+                  const emissions = output * (EMISSIONS_FACTORS[type] || 0);
+                  return (
+                    <div
+                      key={type}
+                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg mb-2"
+                    >
+                      <div>
+                        <div className="font-medium capitalize">{type}</div>
+                        <div className="text-sm text-gray-600">
+                          {output?.toFixed(1) || "0.0"} MW (
+                          {(
+                            (output /
+                              (simulationState.sustainability.totalGeneration ||
+                                1)) *
+                            100
+                          )?.toFixed(1) || "0.0"}
+                          %)
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-medium">
+                          {emissions?.toFixed(1) || "0.0"} kg CO<sub>2</sub>/h
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {EMISSIONS_FACTORS[type] || "0"} kg CO<sub>2</sub>/MWh
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}

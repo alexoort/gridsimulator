@@ -106,38 +106,6 @@ export default function Sustainability({
           </div>
         </div>
       </div>
-
-      {/* Generation Mix */}
-      <div className="mt-6">
-        <h3 className="text-lg font-semibold mb-4">Generation Mix</h3>
-        {Object.entries(generationMix).map(([type, output]) => {
-          const emissions = output * (EMISSIONS_FACTORS[type] || 0);
-          return (
-            <div
-              key={type}
-              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg mb-2"
-            >
-              <div>
-                <div className="font-medium capitalize">{type}</div>
-                <div className="text-sm text-gray-600">
-                  {output?.toFixed(1) || "0.0"} MW (
-                  {((output / (totalGeneration || 1)) * 100)?.toFixed(1) ||
-                    "0.0"}
-                  %)
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-lg font-medium">
-                  {emissions?.toFixed(1) || "0.0"} kg CO<sub>2</sub>/h
-                </div>
-                <div className="text-sm text-gray-600">
-                  {EMISSIONS_FACTORS[type] || "0"} kg CO<sub>2</sub>/MWh
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
