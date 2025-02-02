@@ -73,27 +73,70 @@ export default function GridSimulation({
       const lastFetchDay = new Date(Date.UTC(lyear, lmonth - 1, lday));
       const diffTime = current.getTime() - lastFetchDay.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays >= 7;
+
+      console.log("Checking if should fetch new data:", {
+        currentDate,
+        lastFetch,
+        diffDays,
+        hasMarketData: marketData.length > 0,
+        firstDataDate: marketData[0]?.date,
+        lastDataDate: marketData[marketData.length - 1]?.date,
+      });
+
+      return diffDays >= 3; // Fetch new data every 3 days to ensure overlap
     },
-    []
+    [marketData]
   );
 
   // Fetch market data function
   const fetchMarketData = useCallback(
     async (startHour: number) => {
       try {
+        console.log("Fetching market data:", {
+          date: simulationState.currentDate,
+          startHour,
+          currentMarketDataLength: marketData.length,
+        });
+
         const response = await fetch(
           `/api/market-data?date=${simulationState.currentDate}&hour=${startHour}&range=168`
         );
         const data: MarketResponse = await response.json();
 
-        if (data.success) {
-          setMarketData(data.data);
-          setCurrentDataIndex(0);
-          setLastFetchDate(simulationState.currentDate);
-          console.log("Fetched new market data:", {
+        if (data.success && data.data.length > 0) {
+          console.log("Market data fetched:", {
             date: simulationState.currentDate,
             dataPoints: data.data.length,
+            firstHour: data.data[0]?.hour,
+            lastHour: data.data[data.data.length - 1]?.hour,
+            firstDate: data.data[0]?.date,
+            lastDate: data.data[data.data.length - 1]?.date,
+          });
+
+          // Verify we got the data we expected
+          const expectedDate = new Date(simulationState.currentDate);
+          const firstDataDate = new Date(data.data[0].date);
+
+          // Compare only the date part, ignoring time
+          const expectedDateStr = expectedDate.toISOString().split("T")[0];
+          const receivedDateStr = firstDataDate.toISOString().split("T")[0];
+
+          if (expectedDateStr !== receivedDateStr) {
+            console.error("Received data for wrong date:", {
+              expected: expectedDateStr,
+              received: receivedDateStr,
+              data: data.data[0],
+            });
+            return;
+          }
+
+          setMarketData(data.data);
+          setLastFetchDate(simulationState.currentDate);
+        } else {
+          console.error("Failed to fetch market data or received empty data", {
+            success: data.success,
+            dataLength: data.data?.length,
+            firstRecord: data.data?.[0],
           });
         }
       } catch (error) {
@@ -106,20 +149,35 @@ export default function GridSimulation({
   // Initialize market data
   useEffect(() => {
     if (!isInitialized) {
-      // Clear cumulative values when starting new simulation
+      console.log("Initializing simulation...");
 
-      const startHour = 0; // Start at midnight
-      fetchMarketData(startHour);
       // Update initial simulation state to start at midnight
-      setSimulationState((prev) => ({
-        ...prev,
-        network: {
-          ...prev.network,
-          timeOfDay: startHour,
-        },
-        currentHour: startHour,
-        currentDate: "2024-01-01", // Start on January 1st at midnight
-      }));
+      setSimulationState((prev) => {
+        const startHour = 0; // Start at midnight
+        const startDate = "2024-01-01"; // Start on January 1st at midnight
+
+        console.log("Setting initial state:", {
+          startHour,
+          startDate,
+          currentState: {
+            hour: prev.currentHour,
+            date: prev.currentDate,
+          },
+        });
+
+        return {
+          ...prev,
+          network: {
+            ...prev.network,
+            timeOfDay: startHour,
+          },
+          currentHour: startHour,
+          currentDate: startDate,
+        };
+      });
+
+      // Fetch initial market data
+      fetchMarketData(0);
       setIsInitialized(true);
     }
   }, [fetchMarketData, isInitialized, setSimulationState]);
@@ -156,7 +214,15 @@ export default function GridSimulation({
         if (currentMarketData) {
           switch (generator.type) {
             case "solar":
-              output *= currentMarketData.solar_factor;
+              // Convert UTC hour back to Eastern Time for solar calculation
+              const etHour = (currentMarketData.hour + 24 - 5) % 24;
+              const etMarketData = marketData.find(
+                (data) =>
+                  data.hour === etHour && data.date === currentMarketData.date
+              );
+              output *= etMarketData
+                ? etMarketData.solar_factor
+                : currentMarketData.solar_factor;
               break;
             case "wind":
               output *= currentMarketData.wind_factor;
@@ -192,18 +258,33 @@ export default function GridSimulation({
         },
       };
     },
-    []
+    [marketData]
   );
 
   // Calculate load based on market data and customer base
-
   const calculateLoad = useCallback(() => {
+    // Use the same market data as the simulation update
     const currentMarketData = marketData[currentDataIndex];
-    if (!currentMarketData) return 0;
 
-    // Scale the historical load based on our current customer base
-    const customerRatio = simulationState.network.customers / BASE_CUSTOMERS;
-    return currentMarketData.load_mw * customerRatio;
+    if (!currentMarketData) {
+      console.warn("No market data found for financial calculation");
+      return 0;
+    }
+
+    const load =
+      currentMarketData.load_mw *
+      (simulationState.network.customers / BASE_CUSTOMERS);
+
+    console.log("Load calculation details:", {
+      marketDataIndex: currentDataIndex,
+      marketDataTotal: marketData.length,
+      marketData: currentMarketData,
+      customers: simulationState.network.customers,
+      baseCustomers: BASE_CUSTOMERS,
+      calculatedLoad: load,
+    });
+
+    return load;
   }, [marketData, currentDataIndex, simulationState.network.customers]);
 
   // Calculate total system inertia from all generators using weighted average
@@ -337,7 +418,9 @@ export default function GridSimulation({
         (total, generator) => {
           // Use the actual current output for cost calculation
           const variableCost = generator.currentOutput * generator.variableCost;
-          return total + variableCost;
+          // Add hourly fixed costs
+          const fixedCost = generator.hourlyFixedCost || 0;
+          return total + variableCost + fixedCost;
         },
         0
       );
@@ -347,6 +430,23 @@ export default function GridSimulation({
 
       // Calculate net income
       const netIncome = revenue - operationalCosts - batteryOpCost;
+
+      console.log("Financial calculations:", {
+        supply,
+        currentLoad,
+        powerDelivered,
+        pricePerMWh,
+        revenue,
+        operationalCosts,
+        batteryOpCost,
+        netIncome,
+        generators: simulationState.generators.map((g) => ({
+          type: g.type,
+          output: g.currentOutput,
+          variableCost: g.variableCost * g.currentOutput,
+          fixedCost: g.hourlyFixedCost,
+        })),
+      });
 
       return netIncome;
     },

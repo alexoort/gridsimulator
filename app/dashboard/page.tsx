@@ -47,7 +47,8 @@ const getInitialState = (): SimulationState => ({
       capacity: 500,
       currentOutput: 0,
       cost: 3000,
-      variableCost: 20,
+      variableCost: 35,
+      hourlyFixedCost: 10,
       inertia: 4,
     },
   ],
@@ -156,8 +157,8 @@ export default function Dashboard() {
     // Calculate grid intensity (kg CO2/MWh)
     const gridIntensity =
       simulationState.sustainability.totalGeneration > 0
-        ? simulationState.sustainability.currentEmissions /
-          simulationState.sustainability.totalGeneration
+        ? simulationState.sustainability.cumulativeEmissions /
+          simulationState.sustainability.cumulativeTotalGeneration
         : 0;
 
     // Prepare stats object with all required fields
@@ -223,7 +224,7 @@ export default function Dashboard() {
                 <input
                   type="range"
                   min="1"
-                  max="10"
+                  max="50"
                   value={simulationState.network.speed}
                   onChange={(e) =>
                     setSimulationState((prev) => ({
@@ -242,7 +243,7 @@ export default function Dashboard() {
                 />
                 <div className="flex justify-between text-xs text-gray-600">
                   <span>1x</span>
-                  <span>10x</span>
+                  <span>50x</span>
                 </div>
                 <div className="flex gap-2">
                   {simulationState.network.isRunning ? (
@@ -311,12 +312,40 @@ export default function Dashboard() {
               <div className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-900 text-transparent bg-clip-text">
                 {formattedTime}
               </div>
-              <div className="text-sm mt-1">
-                {simulationState.network.isRunning ? (
-                  <span className="text-green-600 font-medium">● Running</span>
-                ) : (
-                  <span className="text-yellow-500 font-medium">● Paused</span>
-                )}
+              <div className="flex items-center gap-2 text-sm mt-1">
+                <span
+                  className={
+                    simulationState.network.isRunning
+                      ? "text-green-600"
+                      : "text-yellow-500"
+                  }
+                >
+                  ● {simulationState.network.isRunning ? "Running" : "Paused"}
+                </span>
+                <span className="text-gray-300">|</span>
+                <span
+                  className={`font-medium ${
+                    Math.abs(simulationState.network.frequency - 50) > 0.5
+                      ? "text-red-600"
+                      : "text-green-600"
+                  }`}
+                >
+                  {simulationState.network.frequency.toFixed(2)} Hz
+                </span>
+              </div>
+            </div>
+
+            {/* Balance Display */}
+            <div className="bg-white rounded-2xl shadow-lg p-4 flex-1 md:flex-initial">
+              <div className="text-base font-medium text-purple-900">
+                Balance
+              </div>
+              <div className="text-2xl font-bold bg-gradient-to-r from-green-600 to-green-700 text-transparent bg-clip-text">
+                $
+                {simulationState.balance.toLocaleString(undefined, {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0,
+                })}
               </div>
             </div>
           </div>

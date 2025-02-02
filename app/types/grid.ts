@@ -7,6 +7,7 @@ export interface Generator {
   currentOutput: number; // MW
   cost: number; // Initial cost
   variableCost: number; // Cost per MWh
+  hourlyFixedCost: number; // Fixed cost per hour
   inertia: number; // System inertia constant H in seconds
 }
 

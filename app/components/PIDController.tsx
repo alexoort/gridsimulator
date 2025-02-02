@@ -88,7 +88,7 @@ export default function PIDController({
             <input
               type="range"
               min="0"
-              max="50"
+              max="100"
               step="2"
               value={simulationState.network.pid.kp}
               onChange={(e) =>
@@ -99,7 +99,7 @@ export default function PIDController({
             <input
               type="number"
               min="0"
-              max="50"
+              max="100"
               step="0.1"
               value={simulationState.network.pid.kp}
               onChange={(e) =>
@@ -119,7 +119,7 @@ export default function PIDController({
             <input
               type="range"
               min="0"
-              max="20"
+              max="100"
               step="1"
               value={simulationState.network.pid.ki}
               onChange={(e) =>
@@ -130,7 +130,7 @@ export default function PIDController({
             <input
               type="number"
               min="0"
-              max="20"
+              max="100"
               step="0.1"
               value={simulationState.network.pid.ki}
               onChange={(e) =>
@@ -150,7 +150,7 @@ export default function PIDController({
             <input
               type="range"
               min="0"
-              max="30"
+              max="100"
               step="2"
               value={simulationState.network.pid.kd}
               onChange={(e) =>
@@ -161,7 +161,7 @@ export default function PIDController({
             <input
               type="number"
               min="0"
-              max="30"
+              max="100"
               step="0.1"
               value={simulationState.network.pid.kd}
               onChange={(e) =>

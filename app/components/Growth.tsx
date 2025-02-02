@@ -12,43 +12,44 @@ interface GeneratorOption {
   cost: number;
   inertia: number;
   variableCost: number;
+  hourlyFixedCost: number;
 }
 
 const GENERATOR_OPTIONS: Record<GeneratorType, GeneratorOption> = {
   solar: {
-    // upfront cost per MW: $1000
     capacity: 100,
-    cost: 100000,
+    cost: 13000000,
     inertia: 0.01,
-    variableCost: 0, // No fuel cost
+    variableCost: 0,
+    hourlyFixedCost: 0.85616438,
   },
   wind: {
-    // upfront cost per MW: $1300
     capacity: 100,
-    cost: 130000,
+    cost: 17000000,
     inertia: 1,
-    variableCost: 0, // No fuel cost
+    variableCost: 7.5,
+    hourlyFixedCost: 3.62442922,
   },
   nuclear: {
-    // upfront cost per MW: $9000
     capacity: 1000,
-    cost: 9000000,
+    cost: 70000000,
     inertia: 5,
-    variableCost: 12, // $12 per MWh (fuel + maintenance)
+    variableCost: 7,
+    hourlyFixedCost: 1.14155251,
   },
   coal: {
-    // upfront cost per MW: $2800
     capacity: 500,
-    cost: 1400000,
+    cost: 40000000,
     inertia: 4,
-    variableCost: 30, // $30 per MWh (fuel cost)
+    variableCost: 35,
+    hourlyFixedCost: 10,
   },
   hydro: {
-    // upfront cost per MW: $3500
     capacity: 300,
-    cost: 1050000,
+    cost: 45000000,
     inertia: 3,
-    variableCost: 3, // $2 per MWh (maintenance)
+    variableCost: 0,
+    hourlyFixedCost: 10.2739726,
   },
 };
 
@@ -74,6 +75,7 @@ export default function Growth({
       currentOutput: 0,
       cost: GENERATOR_OPTIONS[type].cost,
       variableCost: GENERATOR_OPTIONS[type].variableCost,
+      hourlyFixedCost: GENERATOR_OPTIONS[type].hourlyFixedCost,
       inertia: GENERATOR_OPTIONS[type].inertia,
     };
 
@@ -82,6 +84,23 @@ export default function Growth({
       generators: [...simulationState.generators, generator],
       balance: simulationState.balance - cost,
     });
+  };
+
+  const getGeneratorIcon = (type: GeneratorType) => {
+    switch (type) {
+      case "solar":
+        return "☀️";
+      case "wind":
+        return "🌪️";
+      case "nuclear":
+        return "⚛️";
+      case "coal":
+        return "🏭";
+      case "hydro":
+        return "💧";
+      default:
+        return "🏢";
+    }
   };
 
   const addCustomers = (amount: number) => {
@@ -95,7 +114,8 @@ export default function Growth({
   };
 
   const upgradeBattery = () => {
-    const upgradeCost = 2000; // Cost to upgrade battery by 40 MWh
+    const upgradeCost = 1300000; // From Excel: Battery cost
+    const batteryCapacity = 50; // From Excel: Battery capacity
 
     // Check if player can afford it
     if (simulationState.balance < upgradeCost) {
@@ -109,8 +129,8 @@ export default function Growth({
       ...simulationState,
       battery: {
         ...simulationState.battery,
-        capacity: simulationState.battery.capacity + 40,
-        maxRate: simulationState.battery.maxRate + 5, // Also increase charge/discharge rate
+        capacity: simulationState.battery.capacity + batteryCapacity,
+        maxRate: simulationState.battery.maxRate + batteryCapacity / 8, // Scale charge/discharge rate with capacity
       },
       balance: simulationState.balance - upgradeCost,
     });
@@ -133,7 +153,9 @@ export default function Growth({
                 onClick={() => addGenerator(type as GeneratorType)}
                 className="p-3 border rounded-lg hover:bg-gray-50 transition-colors text-left"
               >
-                <div className="font-medium capitalize">{type}</div>
+                <div className="font-medium flex items-center gap-2">
+                  {getGeneratorIcon(type as GeneratorType)} {type}
+                </div>
                 <div className="text-sm text-gray-600">
                   {details.capacity} MW
                 </div>
@@ -141,7 +163,10 @@ export default function Growth({
                   ${details.cost.toLocaleString()}
                 </div>
                 <div className="text-sm text-gray-500">
-                  Inertia: {details.inertia}s
+                  Variable: ${details.variableCost}/MWh
+                </div>
+                <div className="text-sm text-gray-500">
+                  Fixed: ${details.hourlyFixedCost.toLocaleString()}/hour
                 </div>
               </button>
             ))}
@@ -149,10 +174,12 @@ export default function Growth({
               onClick={upgradeBattery}
               className="p-3 border rounded-lg hover:bg-gray-50 transition-colors text-left"
             >
-              <div className="font-medium">Battery Storage</div>
-              <div className="text-sm text-gray-600">+40 MWh</div>
-              <div className="text-sm text-gray-600">$2,000</div>
-              <div className="text-sm text-gray-500">+5 MW Rate</div>
+              <div className="font-medium flex items-center gap-2">
+                🔋 Battery Storage
+              </div>
+              <div className="text-sm text-gray-600">+50 MWh</div>
+              <div className="text-sm text-gray-600">$1,300,000</div>
+              <div className="text-sm text-gray-500">Variable: $5/MWh</div>
             </button>
           </div>
         </div>
