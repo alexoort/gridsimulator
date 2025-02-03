@@ -83,7 +83,7 @@ export default function GridSimulation({
         lastDataDate: marketData[marketData.length - 1]?.date,
       });
 
-      return diffDays >= 3; // Fetch new data every 3 days to ensure overlap
+      return diffDays >= 7; // Fetch new data every 7 days since that's how much data we request
     },
     [marketData]
   );
@@ -214,15 +214,7 @@ export default function GridSimulation({
         if (currentMarketData) {
           switch (generator.type) {
             case "solar":
-              // Convert UTC hour back to Eastern Time for solar calculation
-              const etHour = (currentMarketData.hour + 24 - 5) % 24;
-              const etMarketData = marketData.find(
-                (data) =>
-                  data.hour === etHour && data.date === currentMarketData.date
-              );
-              output *= etMarketData
-                ? etMarketData.solar_factor
-                : currentMarketData.solar_factor;
+              output *= currentMarketData.solar_factor;
               break;
             case "wind":
               output *= currentMarketData.wind_factor;
@@ -460,17 +452,24 @@ export default function GridSimulation({
     const normalizedDeviation = Math.min(avgDeviation / MaxDeviation, 1);
     let price = 200 - normalizedDeviation * 180; // Base price range 20-200
 
-    // Find maximum deviation in the period
+    // Find maximum deviation in the 48-hour period
     const maxDeviation = Math.max(...deviations);
 
-    // Add penalties for large deviations
+    // Add significant penalties for extreme deviations (>1 Hz)
     if (maxDeviation > 1) {
-      // Calculate penalty that increases with larger deviations
-      // Start with $50 penalty at 1 Hz and increase quadratically
-
-      const penalty = 30 * maxDeviation;
+      // More aggressive penalty for extreme deviations
+      const penalty = Math.pow(maxDeviation, 2) * 50; // Quadratic penalty
       price = Math.max(20, price - penalty); // Ensure price doesn't go below $20
     }
+
+    console.log("Price calculation:", {
+      avgDeviation,
+      normalizedDeviation,
+      maxDeviation,
+      basePrice: 200 - normalizedDeviation * 180,
+      finalPrice: price,
+      deviationsCount: deviations.length,
+    });
 
     return price;
   };
@@ -625,14 +624,18 @@ export default function GridSimulation({
         // Track frequency deviation for this tick
         const currentDeviation = Math.abs(frequency - 50);
 
-        // Only use last 12 deviations for price calculation
+        // Keep track of all deviations for 2-day price calculations
         const recentDeviations = [
           ...(prev.market.dailyFrequencyDeviations || []),
           currentDeviation,
-        ].slice(-12);
+        ].slice(-48); // Keep last 48 hours of deviations
 
-        // Update price every 12 data points
-        const shouldUpdatePrice = recentDeviations.length >= 12;
+        // Update price every 48 hours (2 days)
+        const shouldUpdatePrice =
+          recentDeviations.length >= 48 && // Have enough data
+          newHour === 0 && // At midnight
+          prev.currentDate !== newDate; // Date is changing
+
         const newPrice = shouldUpdatePrice
           ? calculatePrice(recentDeviations)
           : prev.market.pricePerMWh;
