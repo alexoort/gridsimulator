@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Allow access to welcome page, root path, and auth API
+  // Allow access to public pages and API endpoints
   if (
     request.nextUrl.pathname === '/welcome' ||
     request.nextUrl.pathname === '/api/auth' ||
@@ -23,13 +23,21 @@ export async function middleware(request: NextRequest) {
 
   const token = request.cookies.get('token')?.value;
 
-  // If no token, redirect to welcome page
+  // If no token, check if user is a guest
   if (!token) {
+    // Allow access to simulation-related pages for guests
+    if (
+      request.nextUrl.pathname === '/home' ||
+      request.nextUrl.pathname === '/simulation' ||
+      request.nextUrl.pathname === '/dashboard'
+    ) {
+      return NextResponse.next();
+    }
     return NextResponse.redirect(new URL('/welcome', request.url));
   }
 
   try {
-    // Verify token
+    // Verify token for logged-in users
     await jwtVerify(
       token,
       new TextEncoder().encode(JWT_SECRET)

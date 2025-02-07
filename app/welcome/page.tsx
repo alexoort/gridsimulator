@@ -165,15 +165,40 @@ export default function WelcomePage() {
                   </span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setIsLogin(!isLogin)}
-                  className="w-full text-center text-sm text-purple-600 hover:text-purple-900 py-2 rounded-lg hover:bg-purple-50 transition-colors"
-                >
-                  {isLogin
-                    ? "Need an account? Register"
-                    : "Already have an account? Sign in"}
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsLogin(!isLogin)}
+                    className="w-full text-center text-sm text-purple-600 hover:text-purple-900 py-2 rounded-lg hover:bg-purple-50 transition-colors"
+                  >
+                    {isLogin
+                      ? "Need an account? Register"
+                      : "Already have an account? Sign in"}
+                  </button>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-200"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-2 bg-white text-gray-500">or</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.setItem(
+                        "user",
+                        JSON.stringify({ isGuest: true })
+                      );
+                      router.push("/dashboard");
+                    }}
+                    className="w-full text-center text-sm text-gray-600 hover:text-gray-900 py-3 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200"
+                  >
+                    Continue as Guest
+                  </button>
+                </div>
               </form>
             </div>
           </div>

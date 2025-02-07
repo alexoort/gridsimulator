@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import NetworkStatusComponent from "../components/NetworkStatus";
 import Growth from "../components/Growth";
 import { SimulationState } from "../types/grid";
@@ -81,6 +81,16 @@ export default function Dashboard() {
   const [simulationState, setSimulationState] = useState<SimulationState>(
     getInitialState()
   );
+  const [simulationStartTime] = useState<string>(new Date().toISOString());
+  const [frequencyDeviations, setFrequencyDeviations] = useState<number[]>([]);
+
+  // Update frequency deviations whenever frequency changes
+  useEffect(() => {
+    if (simulationState.network.isRunning) {
+      const deviation = Math.abs(simulationState.network.frequency - 50);
+      setFrequencyDeviations((prev) => [...prev, deviation]);
+    }
+  }, [simulationState.network.frequency, simulationState.network.isRunning]);
 
   // Format date for display - using UTC to ensure consistency
   const formatDateTime = (date: string, hour: number) => {
@@ -125,7 +135,6 @@ export default function Dashboard() {
   );
 
   const handleEndSimulation = async (reason?: string) => {
-    // Stop the simulation first
     setSimulationState((prev) => ({
       ...prev,
       network: {
@@ -134,72 +143,55 @@ export default function Dashboard() {
       },
     }));
 
-    // Get user from localStorage
-    const userStr = localStorage.getItem("user");
-    if (!userStr) {
-      console.error("No user found in localStorage");
+    // Get user data from localStorage
+    const userDataStr = localStorage.getItem("user");
+    if (!userDataStr) return;
+
+    const userData = JSON.parse(userDataStr);
+
+    // Skip saving run for guest users
+    if (userData.isGuest) {
+      router.push("/");
       return;
     }
-    const user = JSON.parse(userStr);
 
-    // Calculate metrics
-    const frequencyDeviations =
-      simulationState.network.frequencyHistory?.map((entry) =>
-        Math.abs(entry.frequency - 50)
-      ) || [];
-
-    const averageFrequencyDeviation =
-      frequencyDeviations.reduce((sum, deviation) => sum + deviation, 0) /
-      (frequencyDeviations.length || 1);
-
-    const maxCustomers = simulationState.network.customers || 0;
-
-    // Calculate grid intensity (kg CO2/MWh)
-    const gridIntensity =
-      simulationState.sustainability.totalGeneration > 0
-        ? simulationState.sustainability.cumulativeEmissions /
-          simulationState.sustainability.cumulativeTotalGeneration
-        : 0;
-
-    // Prepare stats object with all required fields
-    const stats = {
-      userId: Number(user.id),
-      startTime: "2024-01-01T00:00:00.000Z",
-      endTime: simulationState.currentDate,
-      moneyMade: simulationState.balance - INITIAL_BALANCE,
-      averageFrequencyDeviation,
-      maxRenewablePercentage:
-        simulationState.sustainability.maxRenewablePercentage,
-      totalEmissions: simulationState.sustainability.cumulativeEmissions,
-      totalGeneration: simulationState.sustainability.cumulativeTotalGeneration,
-      realDate: new Date().toISOString(),
-      endReason: reason || "manual",
-      maxCustomers,
-      gridIntensity,
-    };
-
-    console.log("Saving run with stats:", stats);
-
+    // Only save run for logged-in users
     try {
       const response = await fetch("/api/runs", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(stats),
+        body: JSON.stringify({
+          userId: userData.id,
+          startTime: simulationStartTime,
+          endTime: new Date().toISOString(),
+          moneyMade: simulationState.balance,
+          averageFrequencyDeviation:
+            frequencyDeviations.reduce((a: number, b: number) => a + b, 0) /
+            frequencyDeviations.length,
+          maxRenewablePercentage:
+            simulationState.sustainability.maxRenewablePercentage,
+          totalEmissions: simulationState.sustainability.cumulativeEmissions,
+          totalGeneration: simulationState.sustainability.totalGeneration,
+          realDate: new Date().toISOString(),
+          endReason: reason || "manual",
+          maxCustomers: simulationState.network.customers,
+          gridIntensity:
+            simulationState.sustainability.currentEmissions /
+            simulationState.network.supplyMW,
+        }),
       });
 
-      const responseData = await response.json();
-
       if (!response.ok) {
-        console.error("Server error details:", responseData);
-        throw new Error(`Failed to save run: ${response.status}`);
+        throw new Error("Failed to save run");
       }
 
-      console.log("Successfully saved run with ID:", responseData.id);
-      router.push(`/runs/${responseData.id}`);
+      const run = await response.json();
+      router.push(`/runs/${run.id}`);
     } catch (error) {
       console.error("Error saving run:", error);
+      router.push("/");
     }
   };
 
